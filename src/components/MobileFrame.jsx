@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
-import { Smartphone, Monitor, Sparkles, RefreshCw, UserCheck, HeartHandshake } from 'lucide-react';
+import { Smartphone, Monitor, RefreshCw, HeartHandshake } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const MobileFrame = ({ children }) => {
   // Mode: 'mobile' | 'fullscreen'
   const [viewMode, setViewMode] = useState('mobile');
-  const { demoQuickLogin, setCurrentScreen, setUser, showToast } = useAuth();
+  const { setCurrentScreen, handleLogout, showToast } = useAuth();
 
-  const handleResetDemo = () => {
-    setUser(null);
-    setCurrentScreen('LOGIN');
-    showToast('Demo reset to initial state.', 'info');
+  const handleResetSession = () => {
+    handleLogout();
+    showToast('Session reset to initial login screen.', 'info');
   };
 
   return (
@@ -23,27 +22,19 @@ export const MobileFrame = ({ children }) => {
           </div>
           <div>
             <span className="font-extrabold tracking-wide text-amber-400">KalaSaathi</span>
-            <span className="hidden sm:inline text-slate-400 font-medium ml-2">| SIH Prototype Auth Frontend</span>
+            <span className="hidden sm:inline text-slate-400 font-medium ml-2">| Artisan Manager</span>
           </div>
         </div>
 
-        {/* Demo Action Controls */}
+        {/* Action Controls */}
         <div className="flex items-center gap-2">
           <button
-            onClick={demoQuickLogin}
-            className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-semibold flex items-center gap-1.5 transition-all text-xs cursor-pointer"
-            title="Auto-login with existing artisan Ramubhai"
+            onClick={handleResetSession}
+            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+            title="Reset Session to Login Screen"
           >
-            <UserCheck className="w-3.5 h-3.5" />
-            <span>Quick Demo Login</span>
-          </button>
-
-          <button
-            onClick={handleResetDemo}
-            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all cursor-pointer"
-            title="Reset Flow to Login Screen"
-          >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Reset Session</span>
           </button>
 
           <div className="h-4 w-px bg-slate-700 mx-1 hidden sm:block" />

@@ -10,8 +10,8 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
+      required: [true, 'email is required'],
       unique: true,
-      sparse: true,
       lowercase: true,
       trim: true
     },
@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema(
     password_hash: {
       type: String,
       required: [true, 'password_hash is required']
+    },
+    email_verified: {
+      type: Boolean,
+      default: false
     },
     role: {
       type: String,

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../services/authService';
 
 const AuthContext = createContext();
@@ -13,11 +13,10 @@ export const AuthProvider = ({ children }) => {
   // Active User session
   const [user, setUser] = useState(null);
   
-  // Pending registration or forgot password state for OTP step
+  // Pending registration or forgot password state for Email OTP step
   const [pendingAuth, setPendingAuth] = useState({
     flow: 'SIGNUP', // 'SIGNUP' or 'FORGOT_PASSWORD'
-    phone: '',
-    countryCode: '+91',
+    email: '',
     userId: '',
     tempData: null
   });
@@ -25,6 +24,7 @@ export const AuthProvider = ({ children }) => {
   // Global Toast / Alert message state
   const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [initializing, setInitializing] = useState(true);
 
   const showToast = (message, type = 'info') => {
     setToast({ message, type, id: Date.now() });
@@ -35,37 +35,82 @@ export const AuthProvider = ({ children }) => {
 
   const clearToast = () => setToast(null);
 
+  // Auto-Session Recovery & Google OAuth Callback Token Handler on Mount
+  useEffect(() => {
+    const initAuth = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlToken = urlParams.get('token');
+      const urlError = urlParams.get('error');
+
+      if (urlError) {
+        showToast(decodeURIComponent(urlError), 'error');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      if (urlToken) {
+        authService.setToken(urlToken);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      const activeToken = authService.getToken();
+      if (activeToken) {
+        try {
+          const res = await authService.getProfile();
+          if (res.success && res.user) {
+            setUser(res.user);
+            setCurrentScreen('DASHBOARD');
+            if (urlToken) {
+              showToast('Logged in successfully via Google!', 'success');
+            }
+          }
+        } catch (err) {
+          console.warn('[AuthContext] Session restoration expired or invalid:', err.message);
+          authService.logout();
+        }
+      }
+      setInitializing(false);
+    };
+
+    initAuth();
+  }, []);
+
   // Auth Handlers
-  const handleLogin = async (identifier, password) => {
+  const handleLogin = async (email, password) => {
     setLoading(true);
     try {
-      const res = await authService.login(identifier, password);
+      const res = await authService.login(email, password);
       setUser(res.user);
       showToast(res.message, 'success');
-      // If user has not completed profile, go to profile setup; else dashboard
+      
       if (!res.user.profileCompleted) {
         setCurrentScreen('PROFILE_SETUP');
       } else {
         setCurrentScreen('DASHBOARD');
       }
     } catch (err) {
-      showToast(err.message || 'Login failed. Please check credentials.', 'error');
+      // If email verification is required before login
+      if (err.requiresVerification) {
+        setPendingAuth({
+          flow: 'SIGNUP',
+          email: err.email || email,
+          userId: err.user_id || err.email || email,
+          tempData: { email: err.email || email }
+        });
+        showToast(err.message || 'Please verify your email address.', 'warning');
+        setCurrentScreen('OTP_VERIFICATION');
+      } else {
+        showToast(err.message || 'Login failed. Please check credentials.', 'error');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSocialLogin = async (provider) => {
-    setLoading(true);
+  const handleSocialLogin = (provider) => {
     try {
-      const res = await authService.loginWithSocial(provider);
-      setUser(res.user);
-      showToast(res.message, 'success');
-      setCurrentScreen('PROFILE_SETUP');
+      authService.loginWithSocial(provider);
     } catch (err) {
       showToast(err.message || 'Social login failed.', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -75,8 +120,7 @@ export const AuthProvider = ({ children }) => {
       const res = await authService.register(signupData);
       setPendingAuth({
         flow: 'SIGNUP',
-        phone: signupData.phone,
-        countryCode: signupData.countryCode || '+91',
+        email: signupData.email,
         userId: signupData.userId,
         tempData: signupData
       });
@@ -89,21 +133,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const handleStartForgotPassword = async (identifier) => {
+  const handleStartForgotPassword = async (emailInput) => {
     setLoading(true);
     try {
-      const res = await authService.forgotPassword(identifier);
+      const res = await authService.forgotPassword(emailInput);
       setPendingAuth({
         flow: 'FORGOT_PASSWORD',
-        phone: identifier,
-        countryCode: '+91',
-        userId: identifier,
-        tempData: { identifier }
+        email: emailInput,
+        userId: emailInput,
+        tempData: { email: emailInput }
       });
       showToast(res.message, 'success');
       setCurrentScreen('OTP_VERIFICATION');
     } catch (err) {
-      showToast(err.message || 'Failed to send OTP.', 'error');
+      showToast(err.message || 'Failed to send Email OTP.', 'error');
     } finally {
       setLoading(false);
     }
@@ -112,26 +155,22 @@ export const AuthProvider = ({ children }) => {
   const handleVerifyOTP = async (otpCode) => {
     setLoading(true);
     try {
-      await authService.verifyOTP(pendingAuth.phone || pendingAuth.userId, otpCode);
-      showToast('Verification successful!', 'success');
+      const targetEmail = pendingAuth.email || pendingAuth.userId;
+      const res = await authService.verifyOTP(targetEmail, otpCode);
+      showToast(res.message || 'Email verified successfully!', 'success');
 
       if (pendingAuth.flow === 'SIGNUP') {
-        // Create user profile skeleton & move to Profile Setup
         const newUser = {
-          id: 'artisan_' + Date.now(),
-          fullName: pendingAuth.tempData?.fullName || 'New Artisan',
-          phone: pendingAuth.phone,
-          countryCode: pendingAuth.countryCode,
-          email: pendingAuth.tempData?.email || '',
+          id: pendingAuth.userId,
           userId: pendingAuth.userId,
-          category: '',
+          fullName: pendingAuth.tempData?.fullName || 'Artisan User',
+          email: pendingAuth.email,
           language: language,
           profileCompleted: false
         };
         setUser(newUser);
         setCurrentScreen('PROFILE_SETUP');
       } else if (pendingAuth.flow === 'FORGOT_PASSWORD') {
-        // Navigate to Create New Password screen inside Forgot Password flow
         setCurrentScreen('RESET_PASSWORD_NEW');
       }
     } catch (err) {
@@ -144,7 +183,8 @@ export const AuthProvider = ({ children }) => {
   const handleResetPassword = async (newPassword) => {
     setLoading(true);
     try {
-      const res = await authService.resetPassword(pendingAuth.userId, newPassword);
+      const targetEmail = pendingAuth.email || pendingAuth.userId;
+      const res = await authService.resetPassword(targetEmail, newPassword);
       showToast(res.message, 'success');
       setCurrentScreen('LOGIN');
     } catch (err) {
@@ -159,6 +199,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await authService.updateProfile(profileData);
       setUser(res.user);
+      showToast(res.message, 'success');
       setCurrentScreen('AUTH_SUCCESS');
     } catch (err) {
       showToast(err.message || 'Failed to save profile.', 'error');
@@ -174,9 +215,16 @@ export const AuthProvider = ({ children }) => {
     showToast('Logged out safely.', 'info');
   };
 
-  const demoQuickLogin = () => {
-    handleLogin('ramu_weaver', 'password123');
-  };
+  if (initializing) {
+    return (
+      <div className="min-h-full flex items-center justify-center p-6 bg-[#F6F3EE]">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-4 border-terracotta-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm font-semibold text-slate-600">Connecting to KalaSaathi backend...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider
@@ -200,8 +248,7 @@ export const AuthProvider = ({ children }) => {
         handleVerifyOTP,
         handleResetPassword,
         handleCompleteProfileSetup,
-        handleLogout,
-        demoQuickLogin
+        handleLogout
       }}
     >
       {children}

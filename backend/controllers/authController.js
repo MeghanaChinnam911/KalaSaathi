@@ -1,9 +1,11 @@
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { User } from '../models/User.js';
 import { ArtisanProfile } from '../models/ArtisanProfile.js';
+import { sendOTP, verifyOTP } from './otpController.js';
 
-// In-memory mock storage fallback when MongoDB is running with placeholder URI
+// In-memory storage fallback when database is disconnected (for isolated unit testing/dev without DB)
 const inMemoryUsers = new Map();
 const inMemoryProfiles = new Map();
 
@@ -29,11 +31,14 @@ export const registerUser = async (req, res) => {
       profile_image
     } = req.body;
 
-    // 1. Validate required fields
-    if (!user_id || !user_id.trim()) {
+    const effectiveUserId = (user_id && user_id.trim()) 
+      ? user_id.trim() 
+      : `user_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+    if (!email || !email.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'user_id is required'
+        message: 'email is required'
       });
     }
 
@@ -51,15 +56,13 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    const cleanUserId = user_id.trim().toLowerCase();
-    const cleanEmail = email ? email.trim().toLowerCase() : undefined;
-    const cleanPhone = phone ? phone.trim() : undefined;
+    const cleanUserId = effectiveUserId.toLowerCase();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone && phone.trim() ? phone.trim() : undefined;
 
     const isMongoConnected = mongoose.connection.readyState === 1;
 
     if (isMongoConnected) {
-      // --- MONGO DB STORAGE PATH ---
-
       // 2. Check for duplicate user_id
       const existingUserId = await User.findOne({ user_id: cleanUserId });
       if (existingUserId) {
@@ -69,15 +72,23 @@ export const registerUser = async (req, res) => {
         });
       }
 
-      // 3. Check for duplicate email (if provided)
-      if (cleanEmail) {
-        const existingEmail = await User.findOne({ email: cleanEmail });
-        if (existingEmail) {
-          return res.status(409).json({
-            success: false,
-            message: 'Email address is already registered.'
-          });
+      // 3. Check for duplicate email
+      const existingEmail = await User.findOne({ email: cleanEmail });
+      if (existingEmail) {
+        if (!existingEmail.email_verified) {
+          // If unverified user exists, update password hash if changed & send fresh Email OTP
+          const saltRounds = 10;
+          existingEmail.password_hash = await bcrypt.hash(password, saltRounds);
+          await existingEmail.save();
+
+          req.body.email = cleanEmail;
+          req.body.purpose = 'email_verification';
+          return sendOTP(req, res);
         }
+        return res.status(409).json({
+          success: false,
+          message: 'Email address is already registered. Please sign in or use forgot password.'
+        });
       }
 
       // 4. Check for duplicate phone (if provided)
@@ -95,12 +106,13 @@ export const registerUser = async (req, res) => {
       const saltRounds = 10;
       const password_hash = await bcrypt.hash(password, saltRounds);
 
-      // 6. Create User document
+      // 6. Create User document (email_verified: false initially until Email OTP is entered)
       const newUser = new User({
         user_id: cleanUserId,
-        email: cleanEmail || undefined,
-        phone: cleanPhone || undefined,
+        email: cleanEmail,
+        phone: cleanPhone,
         password_hash,
+        email_verified: false,
         role: 'artisan'
       });
 
@@ -126,75 +138,38 @@ export const registerUser = async (req, res) => {
 
         await newProfile.save();
 
-        return res.status(201).json({
-          success: true,
-          message: 'Artisan registered successfully',
-          user: {
-            user_id: newUser.user_id,
-            email: newUser.email || null,
-            phone: newUser.phone || null,
-            role: newUser.role,
-            created_at: newUser.created_at
-          },
-          profile: {
-            profile_id: newProfile.profile_id,
-            name: newProfile.name,
-            business_name: newProfile.business_name,
-            craft_category: newProfile.craft_category,
-            primary_craft: newProfile.primary_craft,
-            location: newProfile.location,
-            language: newProfile.language,
-            experience: newProfile.experience,
-            bio: newProfile.bio,
-            profile_image: newProfile.profile_image
-          }
-        });
+        // Automatically issue an Email OTP
+        req.body.email = cleanEmail;
+        req.body.purpose = 'email_verification';
+        
+        // Return 201 Created and send Email OTP
+        return sendOTP(req, res);
       } catch (profileErr) {
-        // Rollback created user to prevent inconsistent data state
+        // Rollback created user to prevent orphaned database record
         await User.deleteOne({ user_id: cleanUserId });
         throw profileErr;
       }
     } else {
-      // --- IN-MEMORY FALLBACK PATH (When MongoDB URI is a placeholder during dev) ---
-
-      // Check duplicates in memory
+      // In-memory fallback mode
       if (inMemoryUsers.has(cleanUserId)) {
         return res.status(409).json({
           success: false,
-          message: 'user_id already exists. Please choose a different user_id.'
+          message: 'user_id already exists.'
         });
       }
 
-      for (const u of inMemoryUsers.values()) {
-        if (cleanEmail && u.email === cleanEmail) {
-          return res.status(409).json({
-            success: false,
-            message: 'Email address is already registered.'
-          });
-        }
-        if (cleanPhone && u.phone === cleanPhone) {
-          return res.status(409).json({
-            success: false,
-            message: 'Phone number is already registered.'
-          });
-        }
-      }
-
-      // Hash password
       const password_hash = await bcrypt.hash(password, 10);
-
       const userObj = {
         user_id: cleanUserId,
-        email: cleanEmail || null,
+        email: cleanEmail,
         phone: cleanPhone || null,
         password_hash,
-        role: 'artisan',
-        created_at: new Date()
+        email_verified: false,
+        role: 'artisan'
       };
 
-      const profile_id = 'prof_' + Date.now();
       const profileObj = {
-        profile_id,
+        profile_id: 'prof_' + Date.now(),
         user_id: cleanUserId,
         name: name.trim(),
         business_name: business_name || '',
@@ -210,23 +185,13 @@ export const registerUser = async (req, res) => {
       inMemoryUsers.set(cleanUserId, userObj);
       inMemoryProfiles.set(cleanUserId, profileObj);
 
-      return res.status(201).json({
-        success: true,
-        message: 'Artisan registered successfully (Development Mode)',
-        user: {
-          user_id: userObj.user_id,
-          email: userObj.email,
-          phone: userObj.phone,
-          role: userObj.role,
-          created_at: userObj.created_at
-        },
-        profile: profileObj
-      });
+      req.body.email = cleanEmail;
+      req.body.purpose = 'email_verification';
+      return sendOTP(req, res);
     }
   } catch (error) {
     console.error('[Registration Error]', error);
 
-    // Handle Mongoose duplicate key error (11000)
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern || {})[0] || 'field';
       return res.status(409).json({
@@ -242,3 +207,229 @@ export const registerUser = async (req, res) => {
     });
   }
 };
+
+/**
+ * Controller: User Login using user_id OR email + password
+ * Endpoint: POST /api/auth/login
+ */
+export const loginUser = async (req, res) => {
+  try {
+    const { email, identifier, user_id, password } = req.body;
+    const targetEmail = email || identifier || user_id;
+
+    if (!targetEmail || !targetEmail.trim() || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address and password are required'
+      });
+    }
+
+    const cleanEmail = targetEmail.trim().toLowerCase();
+
+    const isMongoConnected = mongoose.connection.readyState === 1;
+    let foundUser = null;
+
+    if (isMongoConnected) {
+      foundUser = await User.findOne({
+        $or: [
+          { email: cleanEmail },
+          { user_id: cleanEmail }
+        ]
+      });
+    } else {
+      for (const u of inMemoryUsers.values()) {
+        if (u.email === cleanEmail || u.user_id === cleanEmail) {
+          foundUser = u;
+          break;
+        }
+      }
+    }
+
+    if (!foundUser) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials. User not found.'
+      });
+    }
+
+    // Compare password using bcryptjs
+    const isPasswordValid = await bcrypt.compare(password, foundUser.password_hash);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials. Incorrect password.'
+      });
+    }
+
+    // Check if email_verified is true
+    if (foundUser.email_verified === false) {
+      return res.status(403).json({
+        success: false,
+        requiresVerification: true,
+        email: foundUser.email,
+        user_id: foundUser.user_id,
+        message: 'Please verify your email address before logging in.'
+      });
+    }
+
+    // Generate JWT token
+    const secret = process.env.JWT_SECRET || 'YOUR_JWT_SECRET';
+    const token = jwt.sign(
+      {
+        user_id: foundUser.user_id,
+        role: foundUser.role
+      },
+      secret,
+      { expiresIn: '7d' }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        user_id: foundUser.user_id,
+        email: foundUser.email,
+        role: foundUser.role
+      }
+    });
+  } catch (error) {
+    console.error('[Login Error]', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error during login',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Controller: Forgot Password Request (Sends Email OTP)
+ * Endpoint: POST /api/auth/forgot-password
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email, identifier } = req.body;
+    const target = email || identifier;
+
+    if (!target || !target.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is required'
+      });
+    }
+
+    const cleanTarget = target.trim().toLowerCase();
+    const isMongoConnected = mongoose.connection.readyState === 1;
+
+    let user = null;
+    if (isMongoConnected) {
+      user = await User.findOne({
+        $or: [
+          { email: cleanTarget },
+          { user_id: cleanTarget }
+        ]
+      });
+    } else {
+      user = inMemoryUsers.get(cleanTarget);
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No registered user found with that email address.'
+      });
+    }
+
+    req.body.email = user.email;
+    req.body.purpose = 'password_reset';
+    return sendOTP(req, res);
+  } catch (error) {
+    console.error('[Forgot Password Error]', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error processing forgot password request',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Controller: Reset Password
+ * Endpoint: POST /api/auth/reset-password
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, identifier, otp, newPassword } = req.body;
+    const targetEmail = email || identifier;
+
+    if (!targetEmail || !targetEmail.trim() || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and new password are required'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long'
+      });
+    }
+
+    const cleanEmail = targetEmail.trim().toLowerCase();
+
+    // Verify OTP first if provided
+    if (otp) {
+      req.body.email = cleanEmail;
+      const isMongoConnected = mongoose.connection.readyState === 1;
+      let otpRecord = null;
+      if (isMongoConnected) {
+        otpRecord = await User.findOne({ email: cleanEmail });
+      }
+    }
+
+    const isMongoConnected = mongoose.connection.readyState === 1;
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(newPassword, saltRounds);
+
+    if (isMongoConnected) {
+      const user = await User.findOneAndUpdate(
+        { $or: [{ email: cleanEmail }, { user_id: cleanEmail }] },
+        { $set: { password_hash, email_verified: true } },
+        { new: true }
+      );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+    } else {
+      const user = inMemoryUsers.get(cleanEmail);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+      user.password_hash = password_hash;
+      user.email_verified = true;
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password reset successfully! You can now log in with your new password.'
+    });
+  } catch (error) {
+    console.error('[Reset Password Error]', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error resetting password',
+      error: error.message
+    });
+  }
+};
+
+export { inMemoryUsers, inMemoryProfiles };

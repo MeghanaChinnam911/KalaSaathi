@@ -3,16 +3,17 @@ import { useAuth } from '../context/AuthContext';
 import { CustomInput } from '../components/CustomInput';
 import { PasswordInput } from '../components/PasswordInput';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { KeyRound, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { KeyRound, ArrowRight, CheckCircle2, Mail } from 'lucide-react';
+import { validateEmail } from '../utils/validation';
 
 export const ForgotPasswordScreen = () => {
   const { currentScreen, handleStartForgotPassword, handleResetPassword, setCurrentScreen, loading } = useAuth();
 
   const isResetStage = currentScreen === 'RESET_PASSWORD_NEW';
 
-  // State for Step 1: Identifier input
-  const [identifier, setIdentifier] = useState('');
-  const [identifierError, setIdentifierError] = useState('');
+  // State for Step 1: Email input
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   // State for Step 3: New password setup
   const [newPassword, setNewPassword] = useState('');
@@ -22,12 +23,18 @@ export const ForgotPasswordScreen = () => {
 
   const onSendOTP = (e) => {
     e.preventDefault();
-    if (!identifier.trim()) {
-      setIdentifierError('Please enter your Phone number or User ID');
+    if (!email.trim()) {
+      setEmailError('Please enter your registered Email Address');
       return;
     }
-    setIdentifierError('');
-    handleStartForgotPassword(identifier);
+    const err = validateEmail(email);
+    if (err) {
+      setEmailError(err);
+      return;
+    }
+
+    setEmailError('');
+    handleStartForgotPassword(email);
   };
 
   const onResetPassword = (e) => {
@@ -62,25 +69,27 @@ export const ForgotPasswordScreen = () => {
         </div>
 
         {!isResetStage ? (
-          /* STEP 1: Enter Phone / User ID */
+          /* STEP 1: Enter Email */
           <div className="space-y-6">
             <div className="text-left space-y-1">
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                 Reset your password
               </h2>
               <p className="text-sm font-medium text-slate-500">
-                Enter your registered mobile number or User ID to receive a verification code.
+                Enter your registered Email Address to receive a password reset verification code.
               </p>
             </div>
 
             <form onSubmit={onSendOTP} className="space-y-4">
               <CustomInput
-                id="forgot-identifier"
-                label="Phone Number or User ID"
-                placeholder="e.g. 9876543210 or ramu_weaver"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                error={identifierError}
+                id="forgot-email"
+                label="Registered Email Address"
+                type="email"
+                placeholder="e.g. ramu@gmail.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                error={emailError}
+                icon={Mail}
                 required
               />
 
@@ -90,7 +99,7 @@ export const ForgotPasswordScreen = () => {
                 icon={ArrowRight}
                 className="mt-4"
               >
-                Send OTP
+                Send Email OTP
               </PrimaryButton>
             </form>
           </div>

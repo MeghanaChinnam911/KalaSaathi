@@ -1,242 +1,384 @@
-/**
- * Mock Authentication & Artisan Profile Service
- * Designed cleanly to easily replace with real REST API calls in production.
- *
- * Future REST API Mappings:
- * - POST /auth/register
- * - POST /auth/login
- * - POST /auth/send-otp
- * - POST /auth/verify-otp
- * - POST /auth/forgot-password
- * - POST /auth/reset-password
- * - GET  /artisan/profile
- * - PUT  /artisan/profile
- */
-
 import { DEMO_ARTISAN_PROFILE } from './mockData';
 
-// Utility helper to simulate HTTP network latency
-const simulateNetworkDelay = (ms = 600) => new Promise(resolve => setTimeout(resolve, ms));
+const API_BASE_URL = 'http://localhost:5000/api';
 
 class AuthService {
   constructor() {
-    // In-memory mock storage (initialized with demo profile)
     this.currentUser = null;
-    this.otpStore = new Map(); // phone -> { code: '123456', expiresAt }
+    this.token = localStorage.getItem('artisan_token') || null;
+  }
+
+  getToken() {
+    return this.token || localStorage.getItem('artisan_token');
+  }
+
+  setToken(token) {
+    this.token = token;
+    if (token) {
+      localStorage.setItem('artisan_token', token);
+    } else {
+      localStorage.removeItem('artisan_token');
+    }
   }
 
   /**
-   * POST /auth/login
-   * Login using Phone Number / User ID + Password
+   * POST /api/auth/login
    */
-  async login(identifier, password) {
-    await simulateNetworkDelay(700);
-
-    if (!identifier || !password) {
-      throw new Error('Please fill in all required fields.');
+  async login(email, password) {
+    if (!email || !password) {
+      throw new Error('Email Address and password are required.');
     }
 
-    // Demo account shortcut verification
-    if (identifier.toLowerCase() === 'ramu_weaver' || identifier === '9876543210') {
-      if (password !== 'password123' && password.length < 6) {
-        throw new Error('Invalid password. For demo, use: password123');
+    const cleanEmail = email.trim().toLowerCase();
+
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, password })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      if (data.requiresVerification) {
+        const err = new Error(data.message || 'Please verify your email address before logging in.');
+        err.requiresVerification = true;
+        err.email = data.email;
+        err.user_id = data.user_id;
+        throw err;
       }
-      this.currentUser = { ...DEMO_ARTISAN_PROFILE };
-      return {
-        success: true,
-        user: this.currentUser,
-        token: 'mock_jwt_token_ramubhai_weaver_12345',
-        message: 'Login successful! Welcome back, Ramubhai.'
-      };
+      throw new Error(data.message || 'Login failed. Please check credentials.');
     }
 
-    // Generic registration mock login
-    const mockUser = {
-      id: 'artisan_' + Date.now(),
-      fullName: 'Artisan User',
-      userId: identifier.toLowerCase(),
-      phone: /^\d+$/.test(identifier) ? identifier : '9800011223',
-      countryCode: '+91',
-      email: `${identifier}@artisan.org`,
-      businessName: `${identifier} Crafts`,
-      category: 'handloom',
-      categoryName: 'Handloom & Textiles',
-      primaryCraft: 'Traditional Craftsmanship',
-      location: 'India',
-      language: 'en',
-      experience: '5+ Years',
-      bio: 'Digital artisan expanding to global marketplace.',
-      profilePic: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=250&q=80'
+    this.setToken(data.token);
+
+    // Fetch full artisan profile from MongoDB using the new JWT token
+    let profileData = null;
+    try {
+      const profileRes = await this.getProfile();
+      if (profileRes.success) {
+        profileData = profileRes.profile;
+      }
+    } catch (e) {
+      console.warn('Profile fetch post-login:', e.message);
+    }
+
+    const userObj = {
+      id: data.user.user_id,
+      userId: data.user.user_id,
+      role: data.user.role,
+      email: data.user.email,
+      fullName: profileData?.name || data.user.user_id,
+      businessName: profileData?.business_name || '',
+      category: profileData?.craft_category || '',
+      categoryName: profileData?.craft_category || '',
+      primaryCraft: profileData?.primary_craft || '',
+      location: profileData?.location || '',
+      language: profileData?.language || 'en',
+      experience: profileData?.experience || '',
+      bio: profileData?.bio || '',
+      profilePic: profileData?.profile_image || '',
+      profileCompleted: true
     };
 
-    this.currentUser = mockUser;
+    this.currentUser = userObj;
+
     return {
       success: true,
-      user: this.currentUser,
-      token: 'mock_jwt_token_' + Date.now(),
-      message: 'Welcome back to KalaSaathi!'
+      user: userObj,
+      token: data.token,
+      message: data.message || 'Login successful!'
     };
   }
 
   /**
-   * POST /auth/register
-   * Create new artisan account
+   * POST /api/auth/register
    */
   async register(registrationData) {
-    await simulateNetworkDelay(800);
-
-    const { fullName, phone, userId, password } = registrationData;
-    if (!fullName || !phone || !userId || !password) {
+    const { fullName, email, userId, password, phone } = registrationData;
+    if (!fullName || !email || !userId || !password) {
       throw new Error('Please fill in all mandatory fields.');
     }
 
-    // Simulate OTP dispatch
-    await this.sendOTP(phone, 'SIGNUP');
-
-    return {
-      success: true,
-      phone,
-      userId,
-      message: `OTP sent successfully to ${phone}`
-    };
-  }
-
-  /**
-   * POST /auth/send-otp
-   */
-  async sendOTP(phoneOrIdentifier, purpose = 'VERIFICATION') {
-    await simulateNetworkDelay(500);
-
-    // Fixed mock OTP code: 123456 (or random for realism)
-    const mockCode = '123456';
-    this.otpStore.set(phoneOrIdentifier, {
-      code: mockCode,
-      expiresAt: Date.now() + 3 * 60 * 1000 // 3 minutes
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        email: email.trim().toLowerCase(),
+        phone: phone || undefined,
+        password: password,
+        name: fullName,
+        business_name: registrationData.businessName || '',
+        craft_category: registrationData.category || '',
+        primary_craft: registrationData.primaryCraft || '',
+        location: registrationData.location || '',
+        language: registrationData.language || 'en',
+        experience: registrationData.experience || '',
+        bio: registrationData.bio || ''
+      })
     });
 
-    console.log(`[MOCK SMS API] Sent OTP code "${mockCode}" to ${phoneOrIdentifier} for ${purpose}`);
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Registration failed.');
+    }
 
     return {
       success: true,
-      message: `Verification code sent to ${phoneOrIdentifier}. (Use mock code: 123456)`,
-      mockOtpHint: '123456'
+      email: email.trim().toLowerCase(),
+      userId,
+      message: data.message || 'Registration successful! Verification code sent to your email.'
     };
   }
 
   /**
-   * POST /auth/verify-otp
+   * POST /api/auth/send-otp
    */
-  async verifyOTP(phoneOrIdentifier, otpCode) {
-    await simulateNetworkDelay(600);
+  async sendOTP(emailAddress, purpose = 'email_verification') {
+    const response = await fetch(`${API_BASE_URL}/auth/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailAddress, purpose })
+    });
 
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to send OTP email.');
+    }
+
+    return {
+      success: true,
+      message: data.message
+    };
+  }
+
+  /**
+   * POST /api/auth/verify-otp
+   */
+  async verifyOTP(emailAddress, otpCode) {
     if (!otpCode || otpCode.length !== 6) {
       throw new Error('Please enter the full 6-digit verification code.');
     }
 
-    // Allow mock default code 123456 or match stored
-    if (otpCode === '123456') {
-      return {
-        success: true,
-        message: 'Phone number verified successfully!'
-      };
+    const response = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailAddress, otp: otpCode })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'OTP verification failed.');
     }
 
-    const storedData = this.otpStore.get(phoneOrIdentifier);
-    if (storedData && storedData.code === otpCode) {
-      return {
-        success: true,
-        message: 'Phone number verified successfully!'
-      };
-    }
-
-    throw new Error('Invalid OTP code. Please enter 123456 or request a new code.');
-  }
-
-  /**
-   * POST /auth/forgot-password
-   */
-  async forgotPassword(identifier) {
-    await simulateNetworkDelay(600);
-    if (!identifier) {
-      throw new Error('Please enter your Phone Number or User ID.');
-    }
-    await this.sendOTP(identifier, 'PASSWORD_RESET');
     return {
       success: true,
-      identifier,
-      message: `OTP sent to reset password for ${identifier}`
+      message: data.message || 'Email verified successfully!'
     };
   }
 
   /**
-   * POST /auth/reset-password
+   * POST /api/auth/resend-otp
    */
-  async resetPassword(identifier, newPassword) {
-    await simulateNetworkDelay(700);
+  async resendOTP(emailAddress) {
+    const response = await fetch(`${API_BASE_URL}/auth/resend-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailAddress })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to resend OTP email.');
+    }
+
+    return {
+      success: true,
+      message: data.message
+    };
+  }
+
+  /**
+   * POST /api/auth/forgot-password
+   */
+  async forgotPassword(emailAddress) {
+    if (!emailAddress) throw new Error('Please enter your registered Email Address.');
+
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailAddress })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to process forgot password request.');
+    }
+
+    return {
+      success: true,
+      email: emailAddress,
+      message: data.message
+    };
+  }
+
+  /**
+   * POST /api/auth/reset-password
+   */
+  async resetPassword(emailAddress, newPassword) {
     if (!newPassword || newPassword.length < 6) {
       throw new Error('New password must be at least 6 characters.');
     }
+
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailAddress, newPassword })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to reset password.');
+    }
+
     return {
       success: true,
-      message: 'Password reset successfully! You can now log in with your new password.'
+      message: data.message || 'Password reset successfully! You can now log in.'
     };
   }
 
   /**
-   * PUT /artisan/profile
-   * Complete artisan profile onboarding setup
+   * PUT /api/artisan/profile
    */
   async updateProfile(profileData) {
-    await simulateNetworkDelay(800);
+    const token = this.getToken();
 
-    const updatedUser = {
-      ...(this.currentUser || DEMO_ARTISAN_PROFILE),
-      ...profileData,
+    if (!token) {
+      throw new Error('Not authenticated. Token missing.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/artisan/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        name: profileData.businessName || profileData.fullName || profileData.name,
+        business_name: profileData.businessName || '',
+        craft_category: profileData.category || profileData.craft_category || '',
+        primary_craft: profileData.primaryCraft || profileData.primary_craft || '',
+        location: profileData.location || '',
+        language: profileData.language || 'en',
+        experience: profileData.experience || '',
+        bio: profileData.bio || '',
+        profile_image: profileData.profilePic || profileData.profile_image || ''
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to update profile in database');
+    }
+
+    const updatedProfile = data.profile;
+    const userObj = {
+      ...(this.currentUser || {}),
+      id: updatedProfile.user_id,
+      userId: updatedProfile.user_id,
+      fullName: updatedProfile.name,
+      businessName: updatedProfile.business_name,
+      category: updatedProfile.craft_category,
+      categoryName: updatedProfile.craft_category,
+      primaryCraft: updatedProfile.primary_craft,
+      location: updatedProfile.location,
+      language: updatedProfile.language,
+      experience: updatedProfile.experience,
+      bio: updatedProfile.bio,
+      profilePic: updatedProfile.profile_image,
       profileCompleted: true
     };
 
-    this.currentUser = updatedUser;
+    this.currentUser = userObj;
 
     return {
       success: true,
-      user: updatedUser,
-      message: 'Artisan profile saved successfully!'
+      user: userObj,
+      message: 'Artisan profile saved successfully to MongoDB!'
     };
   }
 
   /**
-   * GET /artisan/profile
+   * GET /api/artisan/profile
    */
   async getProfile() {
-    await simulateNetworkDelay(300);
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('No authentication token found.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/artisan/profile`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to fetch profile');
+    }
+
+    const prof = data.profile;
+    const userObj = {
+      id: prof.user_id,
+      userId: prof.user_id,
+      fullName: prof.name,
+      businessName: prof.business_name,
+      category: prof.craft_category,
+      categoryName: prof.craft_category,
+      primaryCraft: prof.primary_craft,
+      location: prof.location,
+      language: prof.language,
+      experience: prof.experience,
+      bio: prof.bio,
+      profilePic: prof.profile_image,
+      profileCompleted: true
+    };
+
+    this.currentUser = userObj;
+
     return {
       success: true,
-      user: this.currentUser || DEMO_ARTISAN_PROFILE
+      profile: prof,
+      user: userObj
     };
   }
 
   /**
-   * Social auth mock (Google / Email)
+   * Google Social Login — Real Top-Level Browser Navigation to OAuth Endpoint
    */
-  async loginWithSocial(provider) {
-    await simulateNetworkDelay(700);
-    this.currentUser = {
-      ...DEMO_ARTISAN_PROFILE,
-      fullName: provider === 'google' ? 'Google Artisan User' : 'Email Artisan User',
-      email: provider === 'google' ? 'artisan.google@gmail.com' : 'artisan@crafts.org'
-    };
-    return {
-      success: true,
-      user: this.currentUser,
-      message: `Logged in successfully via ${provider === 'google' ? 'Google' : 'Email'}`
-    };
+  loginWithSocial(provider) {
+    if (provider === 'google') {
+      window.location.href = `${API_BASE_URL}/auth/google`;
+      return;
+    }
+    throw new Error('Social login provider not supported.');
   }
 
-  /**
-   * Logout
-   */
   logout() {
     this.currentUser = null;
+    this.setToken(null);
     return { success: true };
   }
 }

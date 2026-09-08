@@ -20,8 +20,10 @@ export const validateUserId = (userId) => {
   return null;
 };
 
-export const validateEmail = (email) => {
-  if (!email || !email.trim()) return null; // Optional field
+export const validateEmail = (email, isRequired = false) => {
+  if (!email || !email.trim()) {
+    return isRequired ? 'Email Address is required' : null;
+  }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email.trim())) {
     return 'Please enter a valid email address';

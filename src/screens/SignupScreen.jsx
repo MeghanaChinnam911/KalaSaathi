@@ -2,12 +2,10 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { CustomInput } from '../components/CustomInput';
 import { PasswordInput } from '../components/PasswordInput';
-import { PhoneInput } from '../components/PhoneInput';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SocialLoginButton } from '../components/SocialLoginButton';
-import { User, Mail, ShieldCheck, UserCheck, ArrowRight } from 'lucide-react';
+import { User, Mail, UserCheck, ArrowRight } from 'lucide-react';
 import {
-  validatePhoneNumber,
   validateUserId,
   validateEmail,
   validatePassword
@@ -18,8 +16,6 @@ export const SignupScreen = () => {
 
   const [formData, setFormData] = useState({
     fullName: '',
-    phone: '',
-    countryCode: '+91',
     email: '',
     userId: '',
     password: '',
@@ -45,14 +41,15 @@ export const SignupScreen = () => {
       newErrors.fullName = 'Full Name is required';
     }
 
-    const phoneErr = validatePhoneNumber(formData.phone);
-    if (phoneErr) newErrors.phone = phoneErr;
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email Address is required to receive verification OTP';
+    } else {
+      const emailErr = validateEmail(formData.email);
+      if (emailErr) newErrors.email = emailErr;
+    }
 
     const userErr = validateUserId(formData.userId);
     if (userErr) newErrors.userId = userErr;
-
-    const emailErr = validateEmail(formData.email);
-    if (emailErr) newErrors.email = emailErr;
 
     const passErr = validatePassword(formData.password);
     if (passErr) newErrors.password = passErr;
@@ -100,27 +97,17 @@ export const SignupScreen = () => {
             required
           />
 
-          <PhoneInput
-            id="signup-phone"
-            label="Mobile Number"
-            phoneValue={formData.phone}
-            onPhoneChange={(e) => handleChange('phone', e.target.value)}
-            countryCodeValue={formData.countryCode}
-            onCountryCodeChange={(val) => handleChange('countryCode', val)}
-            error={errors.phone}
-            required
-          />
-
           <CustomInput
             id="signup-email"
-            label="Email Address"
+            label="Email Address (for OTP Verification)"
             type="email"
             placeholder="e.g. ramu@gmail.com"
             value={formData.email}
             onChange={(e) => handleChange('email', e.target.value)}
             error={errors.email}
             icon={Mail}
-            optional
+            required
+            helperText="Real 6-digit OTP will be sent to this email"
           />
 
           <CustomInput
@@ -179,7 +166,7 @@ export const SignupScreen = () => {
             icon={ArrowRight}
             className="mt-4"
           >
-            Create Account
+            Create Account & Send Email OTP
           </PrimaryButton>
         </form>
 

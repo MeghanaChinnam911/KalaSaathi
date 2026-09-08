@@ -4,32 +4,32 @@ import { CustomInput } from '../components/CustomInput';
 import { PasswordInput } from '../components/PasswordInput';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SocialLoginButton } from '../components/SocialLoginButton';
-import { User, HeartHandshake, ArrowRight, Sparkles } from 'lucide-react';
-import { validateUserId, validatePassword } from '../utils/validation';
+import { Mail, HeartHandshake, ArrowRight } from 'lucide-react';
+import { validateEmail, validatePassword } from '../utils/validation';
 
 export const LoginScreen = () => {
-  const { handleLogin, handleSocialLogin, setCurrentScreen, loading, demoQuickLogin } = useAuth();
+  const { handleLogin, handleSocialLogin, setCurrentScreen, loading } = useAuth();
 
-  const [identifier, setIdentifier] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
 
   const onSubmit = (e) => {
     e.preventDefault();
 
-    const idError = validateUserId(identifier);
+    const emailError = validateEmail(email, true);
     const passError = validatePassword(password);
 
-    if (idError || passError) {
+    if (emailError || passError) {
       setErrors({
-        identifier: idError,
+        email: emailError,
         password: passError
       });
       return;
     }
 
     setErrors({});
-    handleLogin(identifier, password);
+    handleLogin(email, password);
   };
 
   return (
@@ -49,17 +49,6 @@ export const LoginScreen = () => {
               <p className="text-xs font-semibold text-terracotta-700">Your digital business manager</p>
             </div>
           </div>
-
-          {/* Quick Demo Shortcut Pill */}
-          <button
-            type="button"
-            onClick={demoQuickLogin}
-            className="px-3 py-1.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1 transition-all shadow-sm cursor-pointer"
-            title="Auto-fill Ramubhai demo credentials"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            <span>Demo Login</span>
-          </button>
         </div>
 
         {/* Welcome Headline */}
@@ -75,16 +64,16 @@ export const LoginScreen = () => {
         {/* Login Form */}
         <form onSubmit={onSubmit} className="space-y-4 pt-2">
           <CustomInput
-            id="login-identifier"
-            label="User ID or Phone Number"
-            type="text"
-            placeholder="e.g. ramu_weaver or 9876543210"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            error={errors.identifier}
-            icon={User}
+            id="login-email"
+            label="Email Address"
+            type="email"
+            placeholder="e.g. ramu@gmail.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            error={errors.email}
+            icon={Mail}
             required
-            autoComplete="username"
+            autoComplete="email"
           />
 
           <div className="space-y-1">
@@ -132,7 +121,6 @@ export const LoginScreen = () => {
         {/* Alternative Social Logins */}
         <div className="space-y-3">
           <SocialLoginButton provider="google" onClick={() => handleSocialLogin('google')} disabled={loading} />
-          <SocialLoginButton provider="email" onClick={() => handleSocialLogin('email')} disabled={loading} />
         </div>
       </div>
 
