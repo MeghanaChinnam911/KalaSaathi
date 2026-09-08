@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n';
 import { CustomInput } from '../components/CustomInput';
 import { PasswordInput } from '../components/PasswordInput';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { AuthHeader } from '../components/AuthHeader';
 import { KeyRound, ArrowRight, CheckCircle2, Mail } from 'lucide-react';
 import { validateEmail } from '../utils/validation';
 
 export const ForgotPasswordScreen = () => {
   const { currentScreen, handleStartForgotPassword, handleResetPassword, setCurrentScreen, loading } = useAuth();
+  const { t } = useTranslation();
 
   const isResetStage = currentScreen === 'RESET_PASSWORD_NEW';
 
@@ -63,6 +66,8 @@ export const ForgotPasswordScreen = () => {
   return (
     <div className="min-h-full flex flex-col justify-between p-6 sm:p-8 animate-fade-in bg-[#F6F3EE]">
       <div className="w-full space-y-6 pt-2">
+        <AuthHeader />
+
         {/* Header Icon */}
         <div className="w-14 h-14 rounded-3xl bg-terracotta-100 text-terracotta-600 flex items-center justify-center shadow-soft">
           <KeyRound className="w-8 h-8" />
@@ -73,17 +78,17 @@ export const ForgotPasswordScreen = () => {
           <div className="space-y-6">
             <div className="text-left space-y-1">
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                Reset your password
+                {t('auth.forgotPasswordTitle')}
               </h2>
               <p className="text-sm font-medium text-slate-500">
-                Enter your registered Email Address to receive a password reset verification code.
+                {t('auth.forgotPasswordSubtitle')}
               </p>
             </div>
 
             <form onSubmit={onSendOTP} className="space-y-4">
               <CustomInput
                 id="forgot-email"
-                label="Registered Email Address"
+                label={t('auth.emailLabel')}
                 type="email"
                 placeholder="e.g. ramu@gmail.com"
                 value={email}
@@ -99,7 +104,7 @@ export const ForgotPasswordScreen = () => {
                 icon={ArrowRight}
                 className="mt-4"
               >
-                Send Email OTP
+                {t('auth.sendResetCode')}
               </PrimaryButton>
             </form>
           </div>
@@ -108,17 +113,17 @@ export const ForgotPasswordScreen = () => {
           <div className="space-y-6">
             <div className="text-left space-y-1">
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                Create new password
+                {t('auth.newPasswordTitle')}
               </h2>
               <p className="text-sm font-medium text-slate-500">
-                Set a strong password for your KalaSaathi account.
+                {t('auth.newPasswordSubtitle')}
               </p>
             </div>
 
             <form onSubmit={onResetPassword} className="space-y-4">
               <PasswordInput
                 id="new-password"
-                label="New Password"
+                label={t('auth.password')}
                 placeholder="Enter new password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -129,7 +134,7 @@ export const ForgotPasswordScreen = () => {
 
               <PasswordInput
                 id="confirm-new-password"
-                label="Confirm New Password"
+                label={t('auth.confirmPassword')}
                 placeholder="Re-enter new password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -143,7 +148,7 @@ export const ForgotPasswordScreen = () => {
                 icon={CheckCircle2}
                 className="mt-4"
               >
-                Reset Password
+                {t('auth.resetPassword')}
               </PrimaryButton>
             </form>
           </div>
@@ -157,7 +162,7 @@ export const ForgotPasswordScreen = () => {
           onClick={() => setCurrentScreen('LOGIN')}
           className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
         >
-          Cancel & Return to Sign In
+          {t('common.cancel')} &amp; {t('common.back')} {t('common.signIn')}
         </button>
       </div>
     </div>

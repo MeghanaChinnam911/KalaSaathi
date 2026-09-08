@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n';
 import { OTPInput } from '../components/OTPInput';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { AuthHeader } from '../components/AuthHeader';
 import { Mail, Edit2, RotateCw } from 'lucide-react';
 import { authService } from '../services/authService';
 
 export const OTPVerificationScreen = () => {
   const { pendingAuth, handleVerifyOTP, setCurrentScreen, loading, showToast } = useAuth();
+  const { t } = useTranslation();
 
   const [otpCode, setOtpCode] = useState('');
   const [timer, setTimer] = useState(60);
@@ -30,7 +33,8 @@ export const OTPVerificationScreen = () => {
     if (!canResend) return;
     try {
       const targetEmail = pendingAuth.email || pendingAuth.userId;
-      const res = await authService.resendOTP(targetEmail);
+      const purpose = pendingAuth.flow === 'FORGOT_PASSWORD' ? 'password_reset' : 'email_verification';
+      const res = await authService.resendOTP(targetEmail, purpose);
       showToast(res.message, 'success');
       setTimer(60);
       setCanResend(false);
@@ -52,6 +56,8 @@ export const OTPVerificationScreen = () => {
   return (
     <div className="min-h-full flex flex-col justify-between p-6 sm:p-8 animate-fade-in bg-[#F6F3EE]">
       <div className="w-full space-y-6 pt-2">
+        <AuthHeader />
+
         {/* Header Icon */}
         <div className="w-14 h-14 rounded-3xl bg-terracotta-100 text-terracotta-600 flex items-center justify-center shadow-soft">
           <Mail className="w-8 h-8" />
@@ -60,10 +66,10 @@ export const OTPVerificationScreen = () => {
         {/* Title & Subtitle */}
         <div className="text-left space-y-2">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Check your email inbox
+            {t('auth.otpTitle')}
           </h2>
           <p className="text-sm font-medium text-slate-600">
-            Enter the 6-digit verification code sent to{' '}
+            {t('auth.otpSubtitle')}{' '}
             <span className="font-bold text-slate-900">{pendingAuth.email || pendingAuth.userId}</span>
           </p>
 
@@ -74,7 +80,7 @@ export const OTPVerificationScreen = () => {
             className="inline-flex items-center gap-1.5 text-xs font-bold text-terracotta-600 hover:underline pt-1 cursor-pointer"
           >
             <Edit2 className="w-3.5 h-3.5" />
-            <span>Change email address</span>
+            <span>{t('common.edit')} {t('auth.emailLabel')}</span>
           </button>
         </div>
 
@@ -99,7 +105,7 @@ export const OTPVerificationScreen = () => {
             loading={loading}
             disabled={otpCode.length !== 6}
           >
-            Verify Email & Continue
+            {t('auth.verifyOtp')}
           </PrimaryButton>
         </form>
 
@@ -112,11 +118,11 @@ export const OTPVerificationScreen = () => {
               className="inline-flex items-center gap-2 text-sm font-bold text-terracotta-600 hover:text-terracotta-700 hover:underline cursor-pointer"
             >
               <RotateCw className="w-4 h-4" />
-              <span>Resend Email OTP Code</span>
+              <span>{t('auth.resendCode')}</span>
             </button>
           ) : (
             <p className="text-xs font-medium text-slate-500">
-              Resend OTP in <span className="font-bold text-slate-800">{timer}s</span>
+              {t('auth.resendIn', { seconds: timer })}
             </p>
           )}
         </div>
@@ -129,7 +135,7 @@ export const OTPVerificationScreen = () => {
           onClick={() => setCurrentScreen('LOGIN')}
           className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
         >
-          Back to Sign In
+          {t('common.back')} {t('common.signIn')}
         </button>
       </div>
     </div>

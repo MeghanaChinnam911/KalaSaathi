@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n';
 import { CustomInput } from '../components/CustomInput';
 import { PasswordInput } from '../components/PasswordInput';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SocialLoginButton } from '../components/SocialLoginButton';
-import { Mail, HeartHandshake, ArrowRight } from 'lucide-react';
+import { AuthHeader } from '../components/AuthHeader';
+import { Mail, ArrowRight } from 'lucide-react';
 import { validateEmail, validatePassword } from '../utils/validation';
 
 export const LoginScreen = () => {
   const { handleLogin, handleSocialLogin, setCurrentScreen, loading } = useAuth();
+  const { t } = useTranslation();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,28 +39,15 @@ export const LoginScreen = () => {
     <div className="min-h-full flex flex-col justify-between p-6 sm:p-8 animate-fade-in bg-[#F6F3EE]">
       {/* Header Section */}
       <div className="w-full space-y-6 pt-2">
-        <div className="flex items-center justify-between">
-          {/* Logo & App Name */}
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-terracotta-600 to-terracotta-500 text-white flex items-center justify-center shadow-craft">
-              <HeartHandshake className="w-7 h-7" />
-            </div>
-            <div>
-              <h1 className="font-extrabold text-2xl tracking-tight text-slate-900 font-sans">
-                Kala<span className="text-terracotta-600">Saathi</span>
-              </h1>
-              <p className="text-xs font-semibold text-terracotta-700">Your digital business manager</p>
-            </div>
-          </div>
-        </div>
+        <AuthHeader />
 
         {/* Welcome Headline */}
         <div className="text-left space-y-1">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Welcome back
+            {t('auth.loginTitle')}
           </h2>
           <p className="text-sm font-medium text-slate-500">
-            Sign in to manage your craft business and connect with buyers.
+            {t('auth.loginSubtitle')}
           </p>
         </div>
 
@@ -65,7 +55,7 @@ export const LoginScreen = () => {
         <form onSubmit={onSubmit} className="space-y-4 pt-2">
           <CustomInput
             id="login-email"
-            label="Email Address"
+            label={t('auth.emailLabel')}
             type="email"
             placeholder="e.g. ramu@gmail.com"
             value={email}
@@ -79,7 +69,7 @@ export const LoginScreen = () => {
           <div className="space-y-1">
             <PasswordInput
               id="login-password"
-              label="Password"
+              label={t('auth.password')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               error={errors.password}
@@ -93,7 +83,7 @@ export const LoginScreen = () => {
                 onClick={() => setCurrentScreen('FORGOT_PASSWORD')}
                 className="text-xs font-bold text-terracotta-600 hover:text-terracotta-700 hover:underline transition-colors cursor-pointer"
               >
-                Forgot password?
+                {t('common.forgotPassword')}
               </button>
             </div>
           </div>
@@ -104,7 +94,7 @@ export const LoginScreen = () => {
             icon={ArrowRight}
             className="mt-2"
           >
-            Sign In
+            {t('common.signIn')}
           </PrimaryButton>
         </form>
 
@@ -114,7 +104,7 @@ export const LoginScreen = () => {
             <div className="w-full border-t border-slate-300/80" />
           </div>
           <div className="relative flex justify-center text-xs uppercase font-bold tracking-wider">
-            <span className="bg-[#F6F3EE] px-3 text-slate-400">OR</span>
+            <span className="bg-[#F6F3EE] px-3 text-slate-400">{t('common.or')}</span>
           </div>
         </div>
 
@@ -127,13 +117,13 @@ export const LoginScreen = () => {
       {/* Footer Switch to Signup */}
       <div className="pt-6 pb-2 text-center">
         <p className="text-sm text-slate-600 font-medium">
-          Don't have an account?{' '}
+          {t('auth.dontHaveAccount')}{' '}
           <button
             type="button"
             onClick={() => setCurrentScreen('SIGNUP')}
             className="font-extrabold text-terracotta-600 hover:text-terracotta-700 hover:underline cursor-pointer ml-1"
           >
-            Sign Up
+            {t('common.signUp')}
           </button>
         </p>
       </div>

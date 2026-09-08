@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n';
 import { CustomInput } from '../components/CustomInput';
 import { PasswordInput } from '../components/PasswordInput';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SocialLoginButton } from '../components/SocialLoginButton';
+import { AuthHeader } from '../components/AuthHeader';
 import { User, Mail, UserCheck, ArrowRight } from 'lucide-react';
 import {
   validateUserId,
@@ -13,6 +15,7 @@ import {
 
 export const SignupScreen = () => {
   const { handleStartSignup, handleSocialLogin, setCurrentScreen, loading } = useAuth();
+  const { t } = useTranslation();
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -74,13 +77,15 @@ export const SignupScreen = () => {
   return (
     <div className="min-h-full flex flex-col justify-between p-6 sm:p-8 animate-fade-in bg-[#F6F3EE]">
       <div className="w-full space-y-6 pt-2">
+        <AuthHeader />
+
         {/* Title Header */}
         <div className="text-left space-y-1">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Create your artisan account
+            {t('auth.signupTitle')}
           </h2>
           <p className="text-sm font-medium text-slate-500">
-            Start taking your craft to the digital marketplace.
+            {t('auth.signupSubtitle')}
           </p>
         </div>
 
@@ -88,8 +93,8 @@ export const SignupScreen = () => {
         <form onSubmit={onSubmit} className="space-y-4">
           <CustomInput
             id="signup-fullname"
-            label="Full Name"
-            placeholder="e.g. Ramubhai Weaver"
+            label={t('auth.fullName')}
+            placeholder={t('auth.fullNamePlaceholder')}
             value={formData.fullName}
             onChange={(e) => handleChange('fullName', e.target.value)}
             error={errors.fullName}
@@ -99,7 +104,7 @@ export const SignupScreen = () => {
 
           <CustomInput
             id="signup-email"
-            label="Email Address (for OTP Verification)"
+            label={t('auth.emailLabel')}
             type="email"
             placeholder="e.g. ramu@gmail.com"
             value={formData.email}
@@ -107,24 +112,22 @@ export const SignupScreen = () => {
             error={errors.email}
             icon={Mail}
             required
-            helperText="Real 6-digit OTP will be sent to this email"
           />
 
           <CustomInput
             id="signup-userid"
-            label="Create User ID"
+            label={t('auth.createUserId')}
             placeholder="e.g. ramu_weaver"
             value={formData.userId}
             onChange={(e) => handleChange('userId', e.target.value)}
             error={errors.userId}
             icon={UserCheck}
             required
-            helperText="Your unique identifier on KalaSaathi"
           />
 
           <PasswordInput
             id="signup-password"
-            label="Password"
+            label={t('auth.password')}
             value={formData.password}
             onChange={(e) => handleChange('password', e.target.value)}
             error={errors.password}
@@ -134,7 +137,7 @@ export const SignupScreen = () => {
 
           <PasswordInput
             id="signup-confirmpassword"
-            label="Confirm Password"
+            label={t('auth.confirmPassword')}
             value={formData.confirmPassword}
             onChange={(e) => handleChange('confirmPassword', e.target.value)}
             error={errors.confirmPassword}
@@ -151,8 +154,7 @@ export const SignupScreen = () => {
                 className="mt-1 w-5 h-5 rounded-md text-terracotta-600 focus:ring-terracotta-500 border-slate-300 transition cursor-pointer"
               />
               <span className="text-xs font-medium text-slate-600 leading-snug">
-                I agree to the <span className="font-bold text-slate-800 underline">Terms & Conditions</span> and{' '}
-                <span className="font-bold text-slate-800 underline">Privacy Policy</span> for artisans.
+                {t('auth.agreeTerms')}
               </span>
             </label>
             {errors.terms && (
@@ -166,7 +168,7 @@ export const SignupScreen = () => {
             icon={ArrowRight}
             className="mt-4"
           >
-            Create Account & Send Email OTP
+            {t('common.createAccount')}
           </PrimaryButton>
         </form>
 
@@ -176,7 +178,7 @@ export const SignupScreen = () => {
             <div className="w-full border-t border-slate-300/80" />
           </div>
           <div className="relative flex justify-center text-xs uppercase font-bold tracking-wider">
-            <span className="bg-[#F6F3EE] px-3 text-slate-400">OR</span>
+            <span className="bg-[#F6F3EE] px-3 text-slate-400">{t('common.or')}</span>
           </div>
         </div>
 
@@ -187,13 +189,13 @@ export const SignupScreen = () => {
       {/* Footer Switch to Sign In */}
       <div className="pt-6 pb-2 text-center">
         <p className="text-sm text-slate-600 font-medium">
-          Already have an account?{' '}
+          {t('auth.alreadyHaveAccount')}{' '}
           <button
             type="button"
             onClick={() => setCurrentScreen('LOGIN')}
             className="font-extrabold text-terracotta-600 hover:text-terracotta-700 hover:underline cursor-pointer ml-1"
           >
-            Sign In
+            {t('common.signIn')}
           </button>
         </p>
       </div>

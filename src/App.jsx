@@ -1,4 +1,5 @@
 import React from 'react';
+import { LanguageProvider } from './i18n';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { MobileFrame } from './components/MobileFrame';
 import { AuthNavigator } from './navigation/AuthNavigator';
@@ -17,9 +18,11 @@ const AppContent = () => {
 
 export function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
 

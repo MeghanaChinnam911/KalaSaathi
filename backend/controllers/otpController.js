@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { Otp } from '../models/Otp.js';
 import { User } from '../models/User.js';
@@ -35,8 +36,8 @@ export const sendOTP = async (req, res) => {
     const isMongoConnected = mongoose.connection.readyState === 1;
 
     if (isMongoConnected) {
-      // Invalidate existing active OTPs for this email
-      await Otp.deleteMany({ email: cleanEmail });
+      // Invalidate existing active OTPs for this email and specific purpose
+      await Otp.deleteMany({ email: cleanEmail, purpose: otpPurpose });
 
       const newOtp = new Otp({
         email: cleanEmail,
@@ -150,20 +151,51 @@ export const verifyOTP = async (req, res) => {
     }
 
     // Verification successful: Delete OTP record to prevent replay
+    let updatedUser = null;
     if (isMongoConnected) {
       await Otp.deleteOne({ _id: otpRecord._id });
       // Update User email_verified = true
-      await User.findOneAndUpdate(
+      updatedUser = await User.findOneAndUpdate(
         { $or: [{ email: cleanEmail }, { user_id: cleanEmail }] },
-        { $set: { email_verified: true } }
+        { $set: { email_verified: true } },
+        { new: true }
       );
     } else {
       inMemoryOtps.delete(cleanEmail);
+      for (const u of inMemoryUsers.values()) {
+        if (u.email === cleanEmail || u.user_id === cleanEmail) {
+          u.email_verified = true;
+          updatedUser = u;
+          break;
+        }
+      }
+    }
+
+    let token = undefined;
+    let userPayload = undefined;
+
+    if (updatedUser && targetPurpose === 'email_verification') {
+      const secret = process.env.JWT_SECRET || 'YOUR_JWT_SECRET';
+      token = jwt.sign(
+        {
+          user_id: updatedUser.user_id,
+          role: updatedUser.role || 'artisan'
+        },
+        secret,
+        { expiresIn: '7d' }
+      );
+
+      userPayload = {
+        user_id: updatedUser.user_id,
+        email: updatedUser.email,
+        role: updatedUser.role || 'artisan'
+      };
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Email verified successfully'
+      message: 'Email verified successfully',
+      ...(token ? { token, user: userPayload } : {})
     });
   } catch (error) {
     console.error('[Verify OTP Error]', error);
@@ -181,7 +213,7 @@ export const verifyOTP = async (req, res) => {
  */
 export const resendOTP = async (req, res) => {
   try {
-    const { email, identifier } = req.body;
+    const { email, identifier, purpose } = req.body;
     const targetEmail = email || identifier;
 
     if (!targetEmail || !targetEmail.trim()) {
@@ -192,10 +224,11 @@ export const resendOTP = async (req, res) => {
     }
 
     const cleanEmail = targetEmail.trim().toLowerCase();
+    const otpPurpose = purpose || 'email_verification';
     const isMongoConnected = mongoose.connection.readyState === 1;
 
     if (isMongoConnected) {
-      const existingOtp = await Otp.findOne({ email: cleanEmail });
+      const existingOtp = await Otp.findOne({ email: cleanEmail, purpose: otpPurpose });
       if (existingOtp) {
         const timeElapsed = (Date.now() - new Date(existingOtp.created_at).getTime()) / 1000;
         if (timeElapsed < 60) {

@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { CheckCircle2, Sparkles, ArrowRight, Store, ShieldCheck } from 'lucide-react';
 
 export const AuthSuccessScreen = () => {
   const { user, setCurrentScreen } = useAuth();
+  const { t } = useTranslation();
 
   useEffect(() => {
     // Auto redirect to dashboard after 3 seconds
@@ -30,13 +32,13 @@ export const AuthSuccessScreen = () => {
         {/* Headline */}
         <div className="space-y-2">
           <span className="inline-block px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
-            Setup Complete!
+            {t('success.setupComplete')}
           </span>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Welcome, {user?.businessName || user?.fullName || 'Artisan'}!
+            {t('success.welcomeArtisan', { name: user?.businessName || user?.fullName || t('dashboard.artisanUser') })}
           </h2>
           <p className="text-sm font-medium text-slate-600 leading-relaxed">
-            Your digital business profile is now active. You are ready to digitize products and reach buyers with AI assistance.
+            {t('success.profileActiveDesc')}
           </p>
         </div>
 
@@ -47,8 +49,8 @@ export const AuthSuccessScreen = () => {
               <Store className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-sm text-slate-900">AI Business Manager Ready</h4>
-              <p className="text-xs text-slate-500">{user?.categoryName || 'Handcrafts'} Catalog Configured</p>
+              <h4 className="font-bold text-sm text-slate-900">{t('success.aiReady')}</h4>
+              <p className="text-xs text-slate-500">{user?.categoryName || user?.category || 'Craft'} Catalog Configured</p>
             </div>
           </div>
 
@@ -57,7 +59,7 @@ export const AuthSuccessScreen = () => {
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-sm text-slate-900">Verified Artisan Status</h4>
+              <h4 className="font-bold text-sm text-slate-900">{t('success.verifiedStatus')}</h4>
               <p className="text-xs text-slate-500">Language: {user?.language?.toUpperCase() || 'EN'}</p>
             </div>
           </div>
@@ -68,11 +70,11 @@ export const AuthSuccessScreen = () => {
           icon={ArrowRight}
           className="mt-4"
         >
-          Go to Artisan Dashboard
+          {t('success.goToDashboard')}
         </PrimaryButton>
 
         <p className="text-xs text-slate-400 animate-pulse">
-          Redirecting automatically in 3 seconds...
+          {t('success.redirecting')}
         </p>
       </div>
     </div>

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n';
 import { CustomInput } from '../components/CustomInput';
 import { CategorySelector } from '../components/CategorySelector';
 import { LanguageSelector } from '../components/LanguageSelector';
@@ -8,27 +9,109 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { Sparkles, MapPin, Award, Mic, ArrowRight, Building } from 'lucide-react';
 import { CRAFT_CATEGORIES } from '../services/mockData';
 
+const LANGUAGE_LOCALE_MAP = {
+  te: 'te-IN', // Telugu
+  hi: 'hi-IN', // Hindi
+  ta: 'ta-IN', // Tamil
+  kn: 'kn-IN', // Kannada
+  ml: 'ml-IN', // Malayalam
+  mr: 'mr-IN', // Marathi
+  bn: 'bn-IN', // Bengali
+  gu: 'gu-IN', // Gujarati
+  pa: 'pa-IN', // Punjabi
+  or: 'or-IN', // Odia
+  en: 'en-IN'  // English
+};
+
 export const ProfileSetupScreen = () => {
-  const { user, handleCompleteProfileSetup, loading, language, setLanguage } = useAuth();
+  const { user, handleCompleteProfileSetup, loading, showToast } = useAuth();
+  const { t, language, setLanguage } = useTranslation();
 
   const [profilePic, setProfilePic] = useState(user?.profilePic || '');
-  const [businessName, setBusinessName] = useState(user?.businessName || user?.fullName + ' Creations' || '');
+  const [businessName, setBusinessName] = useState(user?.businessName || user?.fullName || '');
   const [category, setCategory] = useState(user?.category || 'handloom');
   const [primaryCraft, setPrimaryCraft] = useState(user?.primaryCraft || '');
   const [location, setLocation] = useState(user?.location || '');
-  const [experience, setExperience] = useState('5-10 Years');
+  const [experience, setExperience] = useState(user?.experience || '1-3 Years');
   const [bio, setBio] = useState(user?.bio || '');
   const [isDictating, setIsDictating] = useState(false);
   const [errors, setErrors] = useState({});
 
+  const recognitionRef = useRef(null);
   const EXPERIENCE_OPTIONS = ['1-3 Years', '3-5 Years', '5-10 Years', '10+ Years'];
 
-  const handleVoiceDictationMock = () => {
-    setIsDictating(true);
-    setTimeout(() => {
-      setBio('Master artisan with years of experience crafting handmade traditional heritage products.');
+  const handleVoiceDictation = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      if (showToast) {
+        showToast('Voice dictation is not supported in this browser.', 'error');
+      } else {
+        alert('Voice dictation is not supported in this browser.');
+      }
+      return;
+    }
+
+    if (isDictating) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
       setIsDictating(false);
-    }, 1500);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+
+      const targetLocale = LANGUAGE_LOCALE_MAP[language] || 'en-IN';
+      recognition.lang = targetLocale;
+      recognition.continuous = false;
+      recognition.interimResults = true;
+
+      let initialBio = bio;
+
+      recognition.onstart = () => {
+        setIsDictating(true);
+      };
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        const updatedBio = initialBio ? `${initialBio} ${transcript}` : transcript;
+        setBio(updatedBio);
+      };
+
+      recognition.onerror = (event) => {
+        console.error('[SpeechRecognition Error]', event.error);
+        setIsDictating(false);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          if (showToast) {
+            showToast('Microphone permission is required for voice dictation.', 'error');
+          } else {
+            alert('Microphone permission is required for voice dictation.');
+          }
+        } else if (event.error !== 'no-speech') {
+          if (showToast) {
+            showToast(`Voice dictation error: ${event.error}`, 'error');
+          }
+        }
+      };
+
+      recognition.onend = () => {
+        setIsDictating(false);
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.error('[Voice Dictation Exception]', err);
+      setIsDictating(false);
+      if (showToast) {
+        showToast('Failed to start voice dictation.', 'error');
+      }
+    }
   };
 
   const onSubmit = (e) => {
@@ -68,13 +151,13 @@ export const ProfileSetupScreen = () => {
         <div className="text-left space-y-1">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-terracotta-100 text-terracotta-700 font-bold text-xs mb-1">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Step 2 of 2: Artisan Onboarding</span>
+            <span>{t('profile.onboardingStep')}</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Tell us about your craft
+            {t('profile.title')}
           </h2>
           <p className="text-sm font-medium text-slate-500">
-            This helps us personalize your business experience and connect you with buyers.
+            {t('profile.subtitle')}
           </p>
         </div>
 
@@ -88,8 +171,8 @@ export const ProfileSetupScreen = () => {
         <form onSubmit={onSubmit} className="space-y-6 pt-2">
           <CustomInput
             id="profile-business-name"
-            label="Artisan / Business Name"
-            placeholder="e.g. Vankar Handloom Creations"
+            label={t('profile.artisanName')}
+            placeholder={t('profile.artisanNamePlaceholder')}
             value={businessName}
             onChange={(e) => setBusinessName(e.target.value)}
             error={errors.businessName}
@@ -107,8 +190,8 @@ export const ProfileSetupScreen = () => {
           {/* Primary Craft Details */}
           <CustomInput
             id="profile-primary-craft"
-            label="Primary Specialty Craft"
-            placeholder="e.g. Chanderi Silk Sarees, Clay Terracotta Vases"
+            label={t('profile.primaryCraft')}
+            placeholder={t('profile.primaryCraftPlaceholder')}
             value={primaryCraft}
             onChange={(e) => setPrimaryCraft(e.target.value)}
             icon={Sparkles}
@@ -118,8 +201,8 @@ export const ProfileSetupScreen = () => {
           {/* Location Field */}
           <CustomInput
             id="profile-location"
-            label="City & State / Region"
-            placeholder="e.g. Kutch, Gujarat or Varanasi, UP"
+            label={t('profile.location')}
+            placeholder={t('profile.locationPlaceholder')}
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             icon={MapPin}
@@ -136,7 +219,7 @@ export const ProfileSetupScreen = () => {
           <div className="w-full text-left space-y-2">
             <label className="block text-sm font-semibold text-slate-800 flex items-center gap-1.5">
               <Award className="w-4 h-4 text-terracotta-600" />
-              <span>Years of Craft Experience</span>
+              <span>{t('profile.experience')}</span>
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {EXPERIENCE_OPTIONS.map((opt) => (
@@ -160,22 +243,35 @@ export const ProfileSetupScreen = () => {
           <div className="w-full text-left space-y-2">
             <div className="flex justify-between items-center px-0.5">
               <label htmlFor="profile-bio" className="block text-sm font-semibold text-slate-800">
-                Short Craft Bio / Story
+                {t('profile.bio')}
               </label>
               <button
                 type="button"
-                onClick={handleVoiceDictationMock}
-                className="inline-flex items-center gap-1 text-xs font-bold text-terracotta-600 bg-terracotta-50 hover:bg-terracotta-100 px-2.5 py-1 rounded-full transition-colors cursor-pointer"
+                onClick={handleVoiceDictation}
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full transition-colors cursor-pointer ${
+                  isDictating
+                    ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                    : 'bg-terracotta-50 text-terracotta-600 hover:bg-terracotta-100'
+                }`}
               >
-                <Mic className={`w-3.5 h-3.5 ${isDictating ? 'animate-pulse text-red-600' : ''}`} />
-                <span>{isDictating ? 'Listening...' : 'Voice Dictate'}</span>
+                {isDictating ? (
+                  <>
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse" />
+                    <span>🔴 {t('profile.listening') || 'Listening...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-3.5 h-3.5" />
+                    <span>🎤 {t('profile.voiceDictate') || 'Voice Dictate'}</span>
+                  </>
+                )}
               </button>
             </div>
 
             <textarea
               id="profile-bio"
               rows={3}
-              placeholder="Tell buyers about your traditional technique, family heritage, or craft history..."
+              placeholder={t('profile.bioPlaceholder')}
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               className="w-full rounded-2xl p-4 text-slate-900 font-medium placeholder-slate-400 text-sm bg-white border border-slate-200 hover:border-slate-300 focus:border-terracotta-500 focus:ring-4 focus:ring-terracotta-500/15 shadow-sm resize-none"
@@ -188,15 +284,9 @@ export const ProfileSetupScreen = () => {
             icon={ArrowRight}
             className="mt-4"
           >
-            Complete Profile & Launch Manager
+            {t('profile.completeProfile')}
           </PrimaryButton>
         </form>
-      </div>
-
-      <div className="pt-6 pb-2 text-center">
-        <p className="text-xs text-slate-400 font-medium">
-          You can update your business profile anytime in settings.
-        </p>
       </div>
     </div>
   );

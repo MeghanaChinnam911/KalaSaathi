@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n';
 import { 
   Sparkles, 
   Camera, 
@@ -11,42 +12,22 @@ import {
   CheckCircle2, 
   Sliders, 
   TrendingUp, 
-  ChevronRight, 
   User,
-  HeartHandshake
+  HeartHandshake,
+  PackageOpen,
+  Languages
 } from 'lucide-react';
 
 export const ArtisanDashboardScreen = () => {
   const { user, handleLogout, setCurrentScreen } = useAuth();
+  const { t, language, setLanguage, languages } = useTranslation();
   const [showProfileModal, setShowProfileModal] = useState(false);
-
-  // Mock product items for initial catalog preview
-  const sampleProducts = [
-    {
-      id: 1,
-      title: 'Handwoven Chanderi Silk Saree',
-      price: '₹4,850',
-      aiPriceTag: 'Fair Market Range: ₹4,500 - ₹5,200',
-      status: 'Active',
-      image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=300&q=80',
-      languageCount: '10 Languages'
-    },
-    {
-      id: 2,
-      title: 'Kutch Embroided Clutch Bag',
-      price: '₹1,250',
-      aiPriceTag: 'Fair Market Range: ₹1,100 - ₹1,400',
-      status: 'Active',
-      image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&w=300&q=80',
-      languageCount: '8 Languages'
-    }
-  ];
 
   return (
     <div className="min-h-full bg-[#F6F3EE] flex flex-col justify-between animate-fade-in pb-16 text-left">
       {/* Top Navigation Bar */}
       <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-terracotta-600 text-white flex items-center justify-center font-bold shadow-sm">
             <HeartHandshake className="w-5 h-5" />
           </div>
@@ -56,25 +37,41 @@ export const ArtisanDashboardScreen = () => {
             </h3>
             <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 w-max">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Verified Artisan Manager
+              {t('common.verifiedManager')}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Header Language Dropdown Selector */}
+          <div className="relative flex items-center bg-slate-100 hover:bg-slate-200 rounded-xl px-2 py-1 transition-colors">
+            <Languages className="w-4 h-4 text-terracotta-600 mr-1 flex-shrink-0" />
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="bg-transparent text-xs font-extrabold text-slate-800 outline-none cursor-pointer pr-1"
+            >
+              {languages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.native} ({lang.code.toUpperCase()})
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             onClick={() => setShowProfileModal(true)}
-            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-            title="Profile Settings"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+            title={t('nav.profile')}
           >
-            <Sliders className="w-5 h-5" />
+            <Sliders className="w-4 h-4" />
           </button>
           <button
             onClick={handleLogout}
-            className="p-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition-colors cursor-pointer"
-            title="Log Out"
+            className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition-colors cursor-pointer"
+            title={t('common.logout')}
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -98,17 +95,21 @@ export const ArtisanDashboardScreen = () => {
 
             <div className="space-y-1">
               <div className="flex items-center gap-1.5">
-                <h2 className="font-extrabold text-lg sm:text-xl text-white">{user?.businessName || user?.fullName || 'Ramubhai Weaver'}</h2>
+                <h2 className="font-extrabold text-lg sm:text-xl text-white">
+                  {user?.businessName || user?.fullName || t('dashboard.artisanUser')}
+                </h2>
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 fill-emerald-400/20" />
               </div>
-              <p className="text-xs text-terracotta-200 font-medium">{user?.categoryName || 'Handloom & Textiles'}</p>
+              <p className="text-xs text-terracotta-200 font-medium">
+                {user?.categoryName || user?.category || t('dashboard.categoryNotSet')}
+              </p>
               <div className="flex items-center gap-2 text-[11px] text-slate-300 pt-0.5">
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3 h-3 text-amber-300" />
-                  {user?.location || 'Kutch, Gujarat'}
+                  {user?.location || t('dashboard.locationNotSet')}
                 </span>
                 <span>•</span>
-                <span>{user?.experience || '15+ Years Exp'}</span>
+                <span>{user?.experience ? `${user.experience}` : t('dashboard.experienceNotSet')}</span>
               </div>
             </div>
           </div>
@@ -121,12 +122,12 @@ export const ArtisanDashboardScreen = () => {
               <Camera className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-sm text-slate-900">Digitize New Craft Item</h4>
-              <p className="text-xs text-slate-600">Snap a photo &rarr; AI enhances background &amp; generates catalog</p>
+              <h4 className="font-bold text-sm text-slate-900">{t('dashboard.digitizeCraft')}</h4>
+              <p className="text-xs text-slate-600">{t('dashboard.digitizeDesc')}</p>
             </div>
           </div>
           <button
-            onClick={() => alert('Demo Mode: Product Digitization connects to AI engine in full build!')}
+            onClick={() => alert(t('dashboard.digitizeNotice'))}
             className="p-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
           >
             <Plus className="w-5 h-5" />
@@ -137,7 +138,7 @@ export const ArtisanDashboardScreen = () => {
         <div className="space-y-3">
           <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-terracotta-600" />
-            <span>AI Business Manager Tools</span>
+            <span>{t('dashboard.aiManagerTools')}</span>
           </h3>
 
           <div className="grid grid-cols-2 gap-3">
@@ -146,8 +147,8 @@ export const ArtisanDashboardScreen = () => {
               <div className="p-2 rounded-xl bg-purple-100 text-purple-700 w-max">
                 <Camera className="w-5 h-5" />
               </div>
-              <h4 className="font-bold text-sm text-slate-900">AI Photo Enhancer</h4>
-              <p className="text-[11px] text-slate-500">Auto studio lighting &amp; background removal</p>
+              <h4 className="font-bold text-sm text-slate-900">{t('dashboard.aiPhotoEnhancer')}</h4>
+              <p className="text-[11px] text-slate-500">{t('dashboard.aiPhotoEnhancerDesc')}</p>
             </div>
 
             {/* Tool 2 */}
@@ -155,8 +156,8 @@ export const ArtisanDashboardScreen = () => {
               <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 w-max">
                 <DollarSign className="w-5 h-5" />
               </div>
-              <h4 className="font-bold text-sm text-slate-900">AI Price Suggester</h4>
-              <p className="text-[11px] text-slate-500">Fair market price evaluation</p>
+              <h4 className="font-bold text-sm text-slate-900">{t('dashboard.aiPriceSuggester')}</h4>
+              <p className="text-[11px] text-slate-500">{t('dashboard.aiPriceSuggesterDesc')}</p>
             </div>
 
             {/* Tool 3 */}
@@ -164,8 +165,8 @@ export const ArtisanDashboardScreen = () => {
               <div className="p-2 rounded-xl bg-blue-100 text-blue-700 w-max">
                 <Globe className="w-5 h-5" />
               </div>
-              <h4 className="font-bold text-sm text-slate-900">Multilingual Catalog</h4>
-              <p className="text-[11px] text-slate-500">Translate listings into 10+ languages</p>
+              <h4 className="font-bold text-sm text-slate-900">{t('dashboard.multilingualCatalog')}</h4>
+              <p className="text-[11px] text-slate-500">{t('dashboard.multilingualCatalogDesc')}</p>
             </div>
 
             {/* Tool 4 */}
@@ -173,34 +174,25 @@ export const ArtisanDashboardScreen = () => {
               <div className="p-2 rounded-xl bg-amber-100 text-amber-700 w-max">
                 <TrendingUp className="w-5 h-5" />
               </div>
-              <h4 className="font-bold text-sm text-slate-900">Buyer Connect</h4>
-              <p className="text-[11px] text-slate-500">Direct inquiries &amp; craft orders</p>
+              <h4 className="font-bold text-sm text-slate-900">{t('dashboard.buyerConnect')}</h4>
+              <p className="text-[11px] text-slate-500">{t('dashboard.buyerConnectDesc')}</p>
             </div>
           </div>
         </div>
 
-        {/* Product Catalog Preview */}
+        {/* Product Catalog Section */}
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between">
-            <h3 className="font-extrabold text-base text-slate-900">Your Product Catalog</h3>
-            <span className="text-xs font-bold text-terracotta-600">2 Products Active</span>
+            <h3 className="font-extrabold text-base text-slate-900">{t('dashboard.yourProductCatalog')}</h3>
+            <span className="text-xs font-bold text-slate-500">{t('dashboard.productsCount')}</span>
           </div>
 
-          <div className="space-y-3">
-            {sampleProducts.map((prod) => (
-              <div key={prod.id} className="p-3 rounded-2xl bg-white border border-slate-200 shadow-soft flex items-center gap-3">
-                <img src={prod.image} alt={prod.title} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-sm text-slate-900 truncate">{prod.title}</h4>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="font-extrabold text-sm text-terracotta-700">{prod.price}</span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">{prod.languageCount}</span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 truncate mt-0.5">{prod.aiPriceTag}</p>
-                </div>
-                <ChevronRight className="w-5 h-5 text-slate-300" />
-              </div>
-            ))}
+          <div className="p-6 rounded-2xl bg-white border border-dashed border-slate-300 text-center space-y-2">
+            <PackageOpen className="w-10 h-10 text-slate-300 mx-auto" />
+            <h4 className="font-bold text-sm text-slate-800">{t('dashboard.noProducts')}</h4>
+            <p className="text-xs text-slate-500 max-w-xs mx-auto">
+              {t('dashboard.noProductsDesc')}
+            </p>
           </div>
         </div>
       </div>
@@ -209,14 +201,16 @@ export const ArtisanDashboardScreen = () => {
       {showProfileModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-floating animate-pop-in text-left">
-            <h3 className="font-extrabold text-lg text-slate-900">Artisan Profile Settings</h3>
+            <h3 className="font-extrabold text-lg text-slate-900">{t('profile.settingsTitle')}</h3>
             <div className="space-y-2 text-sm text-slate-700">
-              <p><strong>Name:</strong> {user?.fullName}</p>
-              <p><strong>User ID:</strong> {user?.userId}</p>
-              <p><strong>Mobile:</strong> {user?.countryCode} {user?.phone}</p>
-              <p><strong>Business:</strong> {user?.businessName}</p>
-              <p><strong>Craft:</strong> {user?.categoryName}</p>
-              <p><strong>Language:</strong> {user?.language?.toUpperCase()}</p>
+              <p><strong>{t('profile.name')}:</strong> {user?.fullName || t('common.notProvided')}</p>
+              <p><strong>{t('profile.userId')}:</strong> {user?.userId || t('common.notProvided')}</p>
+              <p><strong>{t('profile.email')}:</strong> {user?.email || t('common.notProvided')}</p>
+              <p><strong>{t('profile.businessName')}:</strong> {user?.businessName || t('common.notProvided')}</p>
+              <p><strong>{t('profile.craftCategory')}:</strong> {user?.categoryName || user?.category || t('common.notProvided')}</p>
+              <p><strong>{t('profile.location')}:</strong> {user?.location || t('common.notProvided')}</p>
+              <p><strong>{t('profile.experience')}:</strong> {user?.experience || t('common.notProvided')}</p>
+              <p><strong>{t('profile.language')}:</strong> {user?.language?.toUpperCase() || language.toUpperCase()}</p>
             </div>
 
             <div className="flex gap-2 pt-2">
@@ -225,15 +219,15 @@ export const ArtisanDashboardScreen = () => {
                   setShowProfileModal(false);
                   setCurrentScreen('PROFILE_SETUP');
                 }}
-                className="flex-1 py-2.5 rounded-2xl bg-terracotta-600 text-white font-bold text-xs hover:bg-terracotta-700 transition"
+                className="flex-1 py-2.5 rounded-2xl bg-terracotta-600 text-white font-bold text-xs hover:bg-terracotta-700 transition cursor-pointer"
               >
-                Edit Profile
+                {t('profile.editProfile')}
               </button>
               <button
                 onClick={() => setShowProfileModal(false)}
-                className="flex-1 py-2.5 rounded-2xl bg-slate-100 text-slate-800 font-bold text-xs hover:bg-slate-200 transition"
+                className="flex-1 py-2.5 rounded-2xl bg-slate-100 text-slate-800 font-bold text-xs hover:bg-slate-200 transition cursor-pointer"
               >
-                Close
+                {t('common.close')}
               </button>
             </div>
           </div>

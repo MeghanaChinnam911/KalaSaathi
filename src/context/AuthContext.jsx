@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
           const res = await authService.getProfile();
           if (res.success && res.user) {
             setUser(res.user);
-            setCurrentScreen('DASHBOARD');
+            setCurrentScreen(res.user.profileCompleted ? 'DASHBOARD' : 'PROFILE_SETUP');
             if (urlToken) {
               showToast('Logged in successfully via Google!', 'success');
             }
@@ -66,7 +66,11 @@ export const AuthProvider = ({ children }) => {
         } catch (err) {
           console.warn('[AuthContext] Session restoration expired or invalid:', err.message);
           authService.logout();
+          setUser(null);
+          setCurrentScreen('LOGIN');
         }
+      } else if (urlError) {
+        setCurrentScreen('LOGIN');
       }
       setInitializing(false);
     };
@@ -156,15 +160,16 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       const targetEmail = pendingAuth.email || pendingAuth.userId;
-      const res = await authService.verifyOTP(targetEmail, otpCode);
+      const purpose = pendingAuth.flow === 'FORGOT_PASSWORD' ? 'password_reset' : 'email_verification';
+      const res = await authService.verifyOTP(targetEmail, otpCode, purpose);
       showToast(res.message || 'Email verified successfully!', 'success');
 
       if (pendingAuth.flow === 'SIGNUP') {
         const newUser = {
-          id: pendingAuth.userId,
-          userId: pendingAuth.userId,
+          id: res.user?.user_id || pendingAuth.userId,
+          userId: res.user?.user_id || pendingAuth.userId,
           fullName: pendingAuth.tempData?.fullName || 'Artisan User',
-          email: pendingAuth.email,
+          email: res.user?.email || pendingAuth.email,
           language: language,
           profileCompleted: false
         };

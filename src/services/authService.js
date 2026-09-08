@@ -1,5 +1,3 @@
-import { DEMO_ARTISAN_PROFILE } from './mockData';
-
 const API_BASE_URL = 'http://localhost:5000/api';
 
 class AuthService {
@@ -158,7 +156,7 @@ class AuthService {
   /**
    * POST /api/auth/verify-otp
    */
-  async verifyOTP(emailAddress, otpCode) {
+  async verifyOTP(emailAddress, otpCode, purpose = 'email_verification') {
     if (!otpCode || otpCode.length !== 6) {
       throw new Error('Please enter the full 6-digit verification code.');
     }
@@ -166,7 +164,7 @@ class AuthService {
     const response = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: emailAddress, otp: otpCode })
+      body: JSON.stringify({ email: emailAddress, otp: otpCode, purpose })
     });
 
     const data = await response.json();
@@ -175,8 +173,14 @@ class AuthService {
       throw new Error(data.message || 'OTP verification failed.');
     }
 
+    if (data.token) {
+      this.setToken(data.token);
+    }
+
     return {
       success: true,
+      token: data.token,
+      user: data.user,
       message: data.message || 'Email verified successfully!'
     };
   }
@@ -184,11 +188,11 @@ class AuthService {
   /**
    * POST /api/auth/resend-otp
    */
-  async resendOTP(emailAddress) {
+  async resendOTP(emailAddress, purpose = 'email_verification') {
     const response = await fetch(`${API_BASE_URL}/auth/resend-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: emailAddress })
+      body: JSON.stringify({ email: emailAddress, purpose })
     });
 
     const data = await response.json();
