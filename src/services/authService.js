@@ -399,6 +399,86 @@ class AuthService {
   }
 
   /**
+   * POST /api/artisan/products
+   */
+  async createProduct(productData) {
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('Not authenticated. Token missing.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/artisan/products`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(productData)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to save product to catalog');
+    }
+
+    return data;
+  }
+
+  /**
+   * GET /api/artisan/products
+   */
+  async getProducts() {
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('No authentication token found.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/artisan/products`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to fetch products');
+    }
+
+    return data;
+  }
+
+  /**
+   * DELETE /api/artisan/products/:id
+   */
+  async deleteProduct(productId) {
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('No authentication token found.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/artisan/products/${productId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to delete product');
+    }
+
+    return data;
+  }
+
+  /**
    * Google Social Login — Real Top-Level Browser Navigation to OAuth Endpoint
    */
   loginWithSocial(provider) {

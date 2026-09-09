@@ -1,5 +1,13 @@
 import express from 'express';
-import { getProfile, updateProfile, getDashboard, getAnalytics } from '../controllers/artisanController.js';
+import { 
+  getProfile, 
+  updateProfile, 
+  getDashboard, 
+  getAnalytics,
+  createProduct,
+  getProducts,
+  deleteProduct
+} from '../controllers/artisanController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -32,5 +40,27 @@ router.get('/dashboard', protect, getDashboard);
  */
 router.get('/analytics', protect, getAnalytics);
 
+/**
+ * @route   GET /api/artisan/products
+ * @desc    Get all craft products for logged in artisan
+ * @access  Private (JWT Required)
+ */
+router.get('/products', protect, getProducts);
+
+/**
+ * @route   POST /api/artisan/products
+ * @desc    Create a new craft product in artisan catalog
+ * @access  Private (JWT Required)
+ */
+router.post('/products', protect, createProduct);
+
+/**
+ * @route   DELETE /api/artisan/products/:id
+ * @desc    Delete a product from artisan catalog
+ * @access  Private (JWT Required)
+ */
+router.delete('/products/:id', protect, deleteProduct);
+
 export default router;
+
 
