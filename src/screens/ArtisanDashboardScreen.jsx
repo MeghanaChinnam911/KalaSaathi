@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n';
+import { VirtualBusinessManager } from '../components/VirtualBusinessManager';
 import { 
   Sparkles, 
   Camera, 
@@ -134,51 +135,8 @@ export const ArtisanDashboardScreen = () => {
           </button>
         </div>
 
-        {/* AI Toolkit Features Grid */}
-        <div className="space-y-3">
-          <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-terracotta-600" />
-            <span>{t('dashboard.aiManagerTools')}</span>
-          </h3>
-
-          <div className="grid grid-cols-2 gap-3">
-            {/* Tool 1 */}
-            <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-soft hover:shadow-md transition-all space-y-2 cursor-pointer">
-              <div className="p-2 rounded-xl bg-purple-100 text-purple-700 w-max">
-                <Camera className="w-5 h-5" />
-              </div>
-              <h4 className="font-bold text-sm text-slate-900">{t('dashboard.aiPhotoEnhancer')}</h4>
-              <p className="text-[11px] text-slate-500">{t('dashboard.aiPhotoEnhancerDesc')}</p>
-            </div>
-
-            {/* Tool 2 */}
-            <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-soft hover:shadow-md transition-all space-y-2 cursor-pointer">
-              <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 w-max">
-                <DollarSign className="w-5 h-5" />
-              </div>
-              <h4 className="font-bold text-sm text-slate-900">{t('dashboard.aiPriceSuggester')}</h4>
-              <p className="text-[11px] text-slate-500">{t('dashboard.aiPriceSuggesterDesc')}</p>
-            </div>
-
-            {/* Tool 3 */}
-            <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-soft hover:shadow-md transition-all space-y-2 cursor-pointer">
-              <div className="p-2 rounded-xl bg-blue-100 text-blue-700 w-max">
-                <Globe className="w-5 h-5" />
-              </div>
-              <h4 className="font-bold text-sm text-slate-900">{t('dashboard.multilingualCatalog')}</h4>
-              <p className="text-[11px] text-slate-500">{t('dashboard.multilingualCatalogDesc')}</p>
-            </div>
-
-            {/* Tool 4 */}
-            <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-soft hover:shadow-md transition-all space-y-2 cursor-pointer">
-              <div className="p-2 rounded-xl bg-amber-100 text-amber-700 w-max">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-              <h4 className="font-bold text-sm text-slate-900">{t('dashboard.buyerConnect')}</h4>
-              <p className="text-[11px] text-slate-500">{t('dashboard.buyerConnectDesc')}</p>
-            </div>
-          </div>
-        </div>
+        {/* Virtual Business Manager Section */}
+        <VirtualBusinessManager />
 
         {/* Product Catalog Section */}
         <div className="space-y-3 pt-2">

@@ -370,6 +370,35 @@ class AuthService {
   }
 
   /**
+   * GET /api/artisan/analytics
+   */
+  async getAnalytics() {
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('No authentication token found.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/artisan/analytics`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to fetch business analytics');
+    }
+
+    return {
+      success: true,
+      analytics: data.analytics
+    };
+  }
+
+  /**
    * Google Social Login — Real Top-Level Browser Navigation to OAuth Endpoint
    */
   loginWithSocial(provider) {

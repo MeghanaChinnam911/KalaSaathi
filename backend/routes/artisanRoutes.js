@@ -1,5 +1,5 @@
 import express from 'express';
-import { getProfile, updateProfile, getDashboard } from '../controllers/artisanController.js';
+import { getProfile, updateProfile, getDashboard, getAnalytics } from '../controllers/artisanController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -25,4 +25,12 @@ router.put('/profile', protect, updateProfile);
  */
 router.get('/dashboard', protect, getDashboard);
 
+/**
+ * @route   GET /api/artisan/analytics
+ * @desc    Get current authenticated artisan's real business analytics from MongoDB
+ * @access  Private (JWT Required)
+ */
+router.get('/analytics', protect, getAnalytics);
+
 export default router;
+
