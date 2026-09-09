@@ -408,22 +408,69 @@ class AuthService {
       throw new Error('Not authenticated. Token missing.');
     }
 
-    const response = await fetch(`${API_BASE_URL}/artisan/products`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(productData)
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/artisan/products`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(productData)
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok || !data.success) {
-      throw new Error(data.message || 'Failed to save product to catalog');
+      if (!response.ok || !data.success) {
+        console.error('[Create Product API Error]', response.status, data);
+        throw new Error(data.message || 'Unable to publish product. Please check product details and try again.');
+      }
+
+      return data;
+    } catch (err) {
+      console.error('[Create Product Fetch Error]', err.message);
+      throw err;
+    }
+  }
+
+  /**
+   * PUT /api/artisan/products/:productId
+   * Updates an existing craft product (ownership verified on backend).
+   * @param {string} productId - The product_id of the product to update
+   * @param {Object} updateData - Fields to update (title, description, category, sector, material, product_size, price, stock)
+   */
+  async updateProduct(productId, updateData) {
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('Not authenticated. Token missing.');
     }
 
-    return data;
+    if (!productId) {
+      throw new Error('Product ID is required for update.');
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/artisan/products/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        console.error('[Update Product API Error]', response.status, data);
+        throw new Error(data.message || 'Failed to update product.');
+      }
+
+      return data;
+    } catch (err) {
+      console.error('[Update Product Fetch Error]', err.message);
+      throw err;
+    }
   }
 
   /**

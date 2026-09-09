@@ -6,7 +6,8 @@ import {
   getAnalytics,
   createProduct,
   getProducts,
-  deleteProduct
+  deleteProduct,
+  updateProduct
 } from '../controllers/artisanController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -53,6 +54,13 @@ router.get('/products', protect, getProducts);
  * @access  Private (JWT Required)
  */
 router.post('/products', protect, createProduct);
+
+/**
+ * @route   PUT /api/artisan/products/:product_id
+ * @desc    Update an existing craft product (owner only)
+ * @access  Private (JWT Required)
+ */
+router.put('/products/:product_id', protect, updateProduct);
 
 /**
  * @route   DELETE /api/artisan/products/:id

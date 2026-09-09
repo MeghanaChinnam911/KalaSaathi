@@ -8,18 +8,25 @@ import { inMemoryProfiles } from './authController.js';
 export const inMemoryProducts = [];
 
 /**
+ * Helper to resolve authenticated user_id from JWT payload
+ */
+const getAuthUserId = (req) => {
+  return req.user?.user_id || req.user?.id || req.user?.userId || null;
+};
+
+/**
  * Controller: Get Artisan Profile
  * Endpoint: GET /api/artisan/profile
  * Access: Protected (JWT)
  */
 export const getProfile = async (req, res) => {
   try {
-    const userId = req.user?.user_id || req.user?.id || req.user?.userId || 'ARTISAN_USER';
+    const userId = getAuthUserId(req);
 
     if (!userId) {
-      return res.status(400).json({
+      return res.status(401).json({
         success: false,
-        message: 'Invalid token payload: user_id missing'
+        message: 'Authentication required. User identity missing or invalid token.'
       });
     }
 
@@ -71,12 +78,12 @@ export const getProfile = async (req, res) => {
  */
 export const updateProfile = async (req, res) => {
   try {
-    const userId = req.user?.user_id || req.user?.id || req.user?.userId || 'ARTISAN_USER';
+    const userId = getAuthUserId(req);
 
     if (!userId) {
-      return res.status(400).json({
+      return res.status(401).json({
         success: false,
-        message: 'Invalid token payload: user_id missing'
+        message: 'Authentication required. User identity missing or invalid token.'
       });
     }
 
@@ -145,7 +152,15 @@ export const updateProfile = async (req, res) => {
  */
 export const getDashboard = async (req, res) => {
   try {
-    const userId = req.user?.user_id || req.user?.id || req.user?.userId || 'ARTISAN_USER';
+    const userId = getAuthUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. User identity missing or invalid token.'
+      });
+    }
+
     const isMongoConnected = mongoose.connection.readyState === 1;
 
     let profile = null;
@@ -194,7 +209,15 @@ export const getDashboard = async (req, res) => {
  */
 export const getAnalytics = async (req, res) => {
   try {
-    const userId = req.user?.user_id || req.user?.id || req.user?.userId || 'ARTISAN_USER';
+    const userId = getAuthUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. User identity missing or invalid token.'
+      });
+    }
+
     const isMongoConnected = mongoose.connection.readyState === 1;
 
     let products = [];
@@ -331,25 +354,72 @@ export const getAnalytics = async (req, res) => {
       }
     });
   }
+};
 
+/**
  * Controller: Create Artisan Product
  * Endpoint: POST /api/artisan/products
  * Access: Protected (JWT)
  */
 export const createProduct = async (req, res) => {
   try {
-    const userId = req.user?.user_id || req.user?.id || req.user?.userId || 'ARTISAN_USER';
+    const userId = getAuthUserId(req);
+
+    if (!userId) {
+      console.warn('[Create Product Auth Error] User identity missing from JWT token');
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. User identity missing or invalid token.'
+      });
+    }
+
+    const userRole = req.user?.role || 'artisan';
     const { title, description, category, price, stock, images } = req.body;
 
+    console.log('[Create Product Audit Log]', {
+      reqUserExists: Boolean(req.user),
+      authenticatedUserId: userId,
+      authenticatedRole: userRole,
+      receivedBodyKeys: Object.keys(req.body || {}),
+      title: title ? title.trim() : null,
+      category: category ? category.trim() : null,
+      price,
+      stock,
+      imagesCount: Array.isArray(images) ? images.length : (images ? 1 : 0)
+    });
+
     if (!title || !title.trim()) {
+      console.warn('[Create Product Validation Error] Missing title');
       return res.status(400).json({
         success: false,
         message: 'Product title is required'
       });
     }
 
+    const numericPrice = Number(price);
+    if (price === undefined || price === null || isNaN(numericPrice) || numericPrice < 0) {
+      console.warn('[Create Product Validation Error] Invalid price:', price);
+      return res.status(400).json({
+        success: false,
+        message: 'A valid non-negative selling price is required'
+      });
+    }
+
+    const numericStock = Number(stock);
+    if (stock === undefined || stock === null || isNaN(numericStock) || numericStock < 0) {
+      console.warn('[Create Product Validation Error] Invalid stock:', stock);
+      return res.status(400).json({
+        success: false,
+        message: 'A valid non-negative stock quantity is required'
+      });
+    }
+
     const productId = 'PROD_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7).toUpperCase();
     const isMongoConnected = mongoose.connection.readyState === 1;
+
+    // Process and filter valid image data strings (rejecting temporary blob: URLs)
+    const rawImages = Array.isArray(images) ? images : (images ? [images] : []);
+    const processedImages = rawImages.filter(img => typeof img === 'string' && img.trim().length > 0 && !img.startsWith('blob:'));
 
     const productPayload = {
       product_id: productId,
@@ -357,15 +427,22 @@ export const createProduct = async (req, res) => {
       title: title.trim(),
       description: (description || '').trim(),
       category: (category || '').trim(),
-      price: Number(price) || 0,
-      stock: Number(stock) || 0,
-      images: Array.isArray(images) ? images : (images ? [images] : []),
+      price: numericPrice,
+      stock: numericStock,
+      images: processedImages,
       status: 'active',
       created_at: new Date()
     };
 
+    console.log('[Create Product Pre-Save Audit]', {
+      assignedProductId: productId,
+      assignedUserId: userId,
+      isMongoConnected
+    });
+
     if (isMongoConnected) {
       const newProduct = await Product.create(productPayload);
+      console.log('[Create Product Success] Saved to MongoDB:', newProduct.product_id);
       return res.status(201).json({
         success: true,
         message: 'Craft product added to catalog successfully!',
@@ -373,6 +450,7 @@ export const createProduct = async (req, res) => {
       });
     } else {
       inMemoryProducts.unshift(productPayload);
+      console.log('[Create Product Success] Saved In-Memory:', productPayload.product_id);
       return res.status(201).json({
         success: true,
         message: 'Craft product added to catalog successfully (In-Memory)!',
@@ -380,11 +458,31 @@ export const createProduct = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('[Create Product Error]', error);
+    console.error('[Create Product Error]', {
+      name: error.name,
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Product validation failed',
+        details: error.message
+      });
+    }
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Duplicate product entry detected'
+      });
+    }
+
     return res.status(500).json({
       success: false,
-      message: 'Failed to save product to catalog',
-      error: error.message
+      message: 'Unable to publish product. Please check the product details and try again.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -396,7 +494,15 @@ export const createProduct = async (req, res) => {
  */
 export const getProducts = async (req, res) => {
   try {
-    const userId = req.user?.user_id || req.user?.id || req.user?.userId || 'ARTISAN_USER';
+    const userId = getAuthUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. User identity missing or invalid token.'
+      });
+    }
+
     const isMongoConnected = mongoose.connection.readyState === 1;
 
     if (isMongoConnected) {
@@ -429,7 +535,15 @@ export const getProducts = async (req, res) => {
  */
 export const deleteProduct = async (req, res) => {
   try {
-    const userId = req.user?.user_id || req.user?.id || req.user?.userId || 'ARTISAN_USER';
+    const userId = getAuthUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. User identity missing or invalid token.'
+      });
+    }
+
     const productId = req.params.id;
     const isMongoConnected = mongoose.connection.readyState === 1;
 
@@ -450,6 +564,175 @@ export const deleteProduct = async (req, res) => {
       success: false,
       message: 'Failed to delete product',
       error: error.message
+    });
+  }
+};
+
+/**
+ * Controller: Update Product
+ * Endpoint: PUT /api/artisan/products/:product_id
+ * Access: Protected (JWT)
+ *
+ * Security:
+ *   - user_id is obtained EXCLUSIVELY from the verified JWT (req.user).
+ *   - Any user_id in the request body is ignored.
+ *   - Artisan may only update their OWN products (403 if ownership fails).
+ *
+ * HTTP Status codes:
+ *   200 → successful update
+ *   400 → validation error (empty title, invalid price/stock)
+ *   401 → authentication missing / invalid token
+ *   403 → product belongs to another artisan
+ *   404 → product not found
+ *   500 → unexpected server error
+ */
+export const updateProduct = async (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. User identity missing or invalid token.'
+      });
+    }
+
+    const productId = req.params.product_id;
+
+    // Strip any attempt to override identity fields from body
+    const {
+      user_id: _ignoredUserId,
+      product_id: _ignoredProductId,
+      _id: _ignoredMongoId,
+      title,
+      description,
+      category,
+      sector,
+      material,
+      product_size,
+      price,
+      stock
+    } = req.body;
+
+    // --- Validation ---
+    if (title !== undefined && (!title || !String(title).trim())) {
+      return res.status(400).json({ success: false, message: 'Product title must not be empty.' });
+    }
+
+    let numericPrice;
+    if (price !== undefined) {
+      numericPrice = Number(price);
+      if (isNaN(numericPrice) || numericPrice < 0) {
+        return res.status(400).json({ success: false, message: 'Price must be a valid non-negative number.' });
+      }
+    }
+
+    let numericStock;
+    if (stock !== undefined) {
+      numericStock = Number(stock);
+      if (isNaN(numericStock) || numericStock < 0 || !Number.isInteger(numericStock)) {
+        return res.status(400).json({ success: false, message: 'Stock must be a valid non-negative integer.' });
+      }
+    }
+
+    const isMongoConnected = mongoose.connection.readyState === 1;
+
+    if (isMongoConnected) {
+      // Fetch the existing product first to verify ownership
+      const existing = await Product.findOne({ product_id: productId });
+
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Product not found.' });
+      }
+
+      if (existing.user_id !== userId) {
+        console.warn('[Update Product] Ownership mismatch', {
+          requestedBy: userId,
+          productOwner: existing.user_id,
+          productId
+        });
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden. You do not have permission to edit this product.'
+        });
+      }
+
+      // Build update payload — only include fields that were provided
+      const updates = {};
+      if (title !== undefined) updates.title = String(title).trim();
+      if (description !== undefined) updates.description = String(description).trim();
+      if (category !== undefined) updates.category = String(category).trim();
+      if (sector !== undefined) updates.sector = String(sector).trim();
+      if (material !== undefined) updates.material = String(material).trim();
+      if (product_size !== undefined) updates.product_size = String(product_size).trim();
+      if (numericPrice !== undefined) updates.price = numericPrice;
+      if (numericStock !== undefined) updates.stock = numericStock;
+
+      const updated = await Product.findOneAndUpdate(
+        { product_id: productId, user_id: userId },
+        { $set: updates },
+        { new: true, runValidators: true }
+      );
+
+      console.log('[Update Product Success] MongoDB:', productId, 'by', userId);
+      return res.status(200).json({
+        success: true,
+        message: 'Product updated successfully!',
+        product: updated
+      });
+
+    } else {
+      // In-memory fallback
+      const idx = inMemoryProducts.findIndex(p => p.product_id === productId);
+
+      if (idx === -1) {
+        return res.status(404).json({ success: false, message: 'Product not found.' });
+      }
+
+      if (inMemoryProducts[idx].user_id !== userId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden. You do not have permission to edit this product.'
+        });
+      }
+
+      const updated = { ...inMemoryProducts[idx] };
+      if (title !== undefined) updated.title = String(title).trim();
+      if (description !== undefined) updated.description = String(description).trim();
+      if (category !== undefined) updated.category = String(category).trim();
+      if (sector !== undefined) updated.sector = String(sector).trim();
+      if (material !== undefined) updated.material = String(material).trim();
+      if (product_size !== undefined) updated.product_size = String(product_size).trim();
+      if (numericPrice !== undefined) updated.price = numericPrice;
+      if (numericStock !== undefined) updated.stock = numericStock;
+
+      inMemoryProducts[idx] = updated;
+      console.log('[Update Product Success] In-Memory:', productId, 'by', userId);
+      return res.status(200).json({
+        success: true,
+        message: 'Product updated successfully!',
+        product: updated
+      });
+    }
+  } catch (error) {
+    console.error('[Update Product Error]', {
+      name: error.name,
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Product validation failed',
+        details: error.message
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: 'Unable to update product. Please try again.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

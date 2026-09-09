@@ -18,7 +18,7 @@ def test_dataset_exists_and_loads():
 
 def test_training_pipeline_execution():
     results, best_model_name = train_and_evaluate_pricing_model()
-    assert best_model_name in ['Random Forest', 'Gradient Boosting', 'XGBoost', 'Linear Regression']
+    assert best_model_name in ['Random Forest', 'Gradient Boosting', 'XGBoost', 'XGBoost Regressor', 'Linear Regression']
     assert results[best_model_name]['test_r2'] > 0.8, "Model Test R2 score should be above 0.8"
 
 def test_model_files_created():

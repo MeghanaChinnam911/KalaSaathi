@@ -28,16 +28,33 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Request Audit Logger Middleware for product publishing debugging
+app.use((req, res, next) => {
+  if (req.path.includes('/products')) {
+    console.log('[Express Server Audit]', req.method, req.path, {
+      contentType: req.headers['content-type'],
+      hasAuthHeader: Boolean(req.headers.authorization),
+      contentLength: req.headers['content-length']
+    });
+  }
+  next();
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/artisan', artisanRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
-  console.error('[Unhandled Error]', err);
-  res.status(500).json({
+  console.error('[Unhandled Express Error]', {
+    name: err.name,
+    message: err.message,
+    status: err.status || 500,
+    stack: err.stack
+  });
+  res.status(err.status || 500).json({
     success: false,
-    message: 'Internal server error',
+    message: err.message || 'Internal server error',
     error: err.message
   });
 });

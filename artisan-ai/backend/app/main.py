@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.image_routes import router as image_router
+from app.api.catalog_routes import router as catalog_router
+from app.api.pricing_routes import router as pricing_router
 
 app = FastAPI(
     title="Artisan AI",
@@ -20,6 +22,8 @@ app.add_middleware(
 
 # Register API Routers
 app.include_router(image_router, prefix="/api/v1/image")
+app.include_router(catalog_router, prefix="/api/v1/catalog")
+app.include_router(pricing_router, prefix="/api/v1/pricing")
 
 
 @app.get("/artisan")

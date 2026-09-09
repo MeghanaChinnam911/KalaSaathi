@@ -39,33 +39,37 @@ def train_and_evaluate_pricing_model():
     # Sort chronologically for temporal splitting
     df = df.sort_values(by='parsed_date').reset_index(drop=True)
 
-    # Define Optimized Feature Categories (Excluding high-cardinality 'product' and 'district' for peak test generalization)
+    # Define Feature Configurations (Excluding high-cardinality 'product' and 'district' for peak test generalization)
     num_features = ['labour_hours', 'material_cost', 'product_cost', 'quantity', 'year', 'month', 'day', 'day_of_week']
     cat_features = ['state', 'category', 'sector', 'material', 'product_size', 'demand_level', 'season', 'source']
+    excluded_features = ['product', 'district']
     target_col = 'market_price'
 
     all_feature_cols = num_features + cat_features
 
     print("\n--- Feature Cardinality & Audit Decisions ---")
     print(f"Total Rows: {len(df)}")
-    print("Decision: Excluding high-cardinality 'product' (850 unique) and 'district' (781 unique) to achieve optimal Test MAE (Rs. 163.41) and clean dimensional efficiency.")
+    print(f"Excluded Features: {excluded_features} to maximize future generalization and prevent sparse matrix overfitting.")
 
-    X = df[all_feature_cols]
-    y = df[target_col]
-
-    # 4. Temporal Train/Test Split (80% Train, 20% Test)
-    split_idx = int(len(df) * 0.8)
-    X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
-    y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+    # 3. Strict Chronological Date Split (All records of boundary date 2026-05-01 placed in Train set)
+    boundary_date = pd.to_datetime('2026-05-01')
     
-    train_dates = df['parsed_date'].iloc[:split_idx]
-    test_dates = df['parsed_date'].iloc[split_idx:]
+    train_mask = df['parsed_date'] <= boundary_date
+    test_mask = df['parsed_date'] > boundary_date
 
-    print(f"\n--- Temporal Split (80% Train / 20% Test) ---")
-    print(f"Train set: {len(X_train)} rows | Date Range: {train_dates.min().strftime('%Y-%m-%d')} to {train_dates.max().strftime('%Y-%m-%d')}")
-    print(f"Test set:  {len(X_test)} rows | Date Range: {test_dates.min().strftime('%Y-%m-%d')} to {test_dates.max().strftime('%Y-%m-%d')}")
+    train_df = df[train_mask].reset_index(drop=True)
+    test_df = df[test_mask].reset_index(drop=True)
 
-    # 5. Preprocessing Pipeline
+    X_train = train_df[all_feature_cols]
+    y_train = train_df[target_col]
+    X_test = test_df[all_feature_cols]
+    y_test = test_df[target_col]
+
+    print(f"\n--- Strict Temporal Split ---")
+    print(f"Train set: {len(X_train)} rows | Date Range: {train_df['parsed_date'].min().strftime('%Y-%m-%d')} to {train_df['parsed_date'].max().strftime('%Y-%m-%d')}")
+    print(f"Test set:  {len(X_test)} rows | Date Range: {test_df['parsed_date'].min().strftime('%Y-%m-%d')} to {test_df['parsed_date'].max().strftime('%Y-%m-%d')}")
+
+    # 4. Preprocessing Pipeline
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', StandardScaler(), num_features),
@@ -73,7 +77,7 @@ def train_and_evaluate_pricing_model():
         ]
     )
 
-    # 6. Candidate Models
+    # 5. Candidate Models
     models = {
         'Linear Regression': LinearRegression(),
         'Random Forest': RandomForestRegressor(n_estimators=100, max_depth=12, random_state=42),
@@ -81,9 +85,9 @@ def train_and_evaluate_pricing_model():
     }
 
     if HAS_XGBOOST:
-        models['XGBoost'] = xgb.XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=5, random_state=42, verbosity=0)
+        models['XGBoost Regressor'] = xgb.XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=5, random_state=42, verbosity=0)
 
-    # 7. Model Training & Evaluation
+    # 6. Model Training & Evaluation
     print("\n" + "="*85)
     print(f"{'Model Name':<20} | {'Train MAE':<10} | {'Test MAE':<10} | {'Test RMSE':<10} | {'Train R2':<10} | {'Test R2':<10}")
     print("="*85)
@@ -129,41 +133,46 @@ def train_and_evaluate_pricing_model():
 
         print(f"{name:<20} | Rs.{train_mae:<8.2f} | Rs.{test_mae:<8.2f} | Rs.{test_rmse:<8.2f} | {train_r2:<10.4f} | {test_r2:<10.4f}")
 
-        # Best model selection based primarily on lowest Test MAE and strong R2
-        if test_mae < best_test_mae:
-            best_test_mae = test_mae
-            best_model_name = name
-            best_pipeline = pipeline
+        # Evaluate each model
+        if name == 'XGBoost Regressor':
+            xgboost_pipeline = pipeline
+
+    # Enforce XGBoost Regressor as the final selected model per requirement
+    final_model_name = 'XGBoost Regressor'
+    final_pipeline = results[final_model_name]['pipeline']
 
     print("="*85)
-    print(f"\n[WINNING MODEL]: {best_model_name}")
-    print(f"Test MAE: Rs. {results[best_model_name]['test_mae']:.2f}")
-    print(f"Test RMSE: Rs. {results[best_model_name]['test_rmse']:.2f}")
-    print(f"Test R2: {results[best_model_name]['test_r2']:.4f}")
-    print(f"Mean Actual Price: Rs. {results[best_model_name]['mean_actual']:.2f}")
-    print(f"Mean Predicted Price: Rs. {results[best_model_name]['mean_predicted']:.2f}")
+    print(f"\n[FINAL SELECTED MODEL]: {final_model_name}")
+    print(f"Test MAE: Rs. {results[final_model_name]['test_mae']:.2f}")
+    print(f"Test RMSE: Rs. {results[final_model_name]['test_rmse']:.2f}")
+    print(f"Test R2: {results[final_model_name]['test_r2']:.4f}")
+    print(f"Mean Actual Price: Rs. {results[final_model_name]['mean_actual']:.2f}")
+    print(f"Mean Predicted Price: Rs. {results[final_model_name]['mean_predicted']:.2f}")
 
-    # 8. Save Pipeline & Metadata
+    # 7. Save Final Pipeline & Metadata
     models_dir = os.path.join(base_dir, 'models')
     os.makedirs(models_dir, exist_ok=True)
 
     joblib_path = os.path.join(models_dir, 'price_prediction_model.joblib')
-    joblib.dump(best_pipeline, joblib_path)
+    joblib.dump(final_pipeline, joblib_path)
     print(f"\n[Artifact Saved] Trained pipeline saved to: {joblib_path}")
 
     metadata = {
-        'model_name': best_model_name,
+        'final_model': final_model_name,
+        'model_name': final_model_name,
         'target_column': target_col,
         'numerical_features': num_features,
         'categorical_features': cat_features,
+        'excluded_features': excluded_features,
+        'preprocessing_details': "StandardScaler for numerical features, OneHotEncoder(handle_unknown='ignore') for categorical features",
         'training_rows': len(X_train),
         'testing_rows': len(X_test),
-        'training_date_range': f"{train_dates.min().strftime('%Y-%m-%d')} to {train_dates.max().strftime('%Y-%m-%d')}",
-        'testing_date_range': f"{test_dates.min().strftime('%Y-%m-%d')} to {test_dates.max().strftime('%Y-%m-%d')}",
-        'test_mae': results[best_model_name]['test_mae'],
-        'test_rmse': results[best_model_name]['test_rmse'],
-        'test_r2': results[best_model_name]['test_r2'],
-        'train_r2': results[best_model_name]['train_r2'],
+        'training_date_range': f"{train_df['parsed_date'].min().strftime('%Y-%m-%d')} to {train_df['parsed_date'].max().strftime('%Y-%m-%d')}",
+        'testing_date_range': f"{test_df['parsed_date'].min().strftime('%Y-%m-%d')} to {test_df['parsed_date'].max().strftime('%Y-%m-%d')}",
+        'test_mae': results[final_model_name]['test_mae'],
+        'test_rmse': results[final_model_name]['test_rmse'],
+        'test_r2': results[final_model_name]['test_r2'],
+        'train_r2': results[final_model_name]['train_r2'],
         'training_timestamp': datetime.now().isoformat(),
         'all_models_evaluated': {k: {m: v[m] for m in ['train_mae', 'test_mae', 'test_rmse', 'train_r2', 'test_r2']} for k, v in results.items()}
     }
@@ -173,7 +182,7 @@ def train_and_evaluate_pricing_model():
         json.dump(metadata, f, indent=2)
     print(f"[Artifact Saved] Metadata saved to: {metadata_path}")
 
-    return results, best_model_name
+    return results, final_model_name
 
 if __name__ == '__main__':
     train_and_evaluate_pricing_model()
