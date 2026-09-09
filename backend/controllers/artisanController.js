@@ -373,20 +373,7 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    const userRole = req.user?.role || 'artisan';
     const { title, description, category, price, stock, images } = req.body;
-
-    console.log('[Create Product Audit Log]', {
-      reqUserExists: Boolean(req.user),
-      authenticatedUserId: userId,
-      authenticatedRole: userRole,
-      receivedBodyKeys: Object.keys(req.body || {}),
-      title: title ? title.trim() : null,
-      category: category ? category.trim() : null,
-      price,
-      stock,
-      imagesCount: Array.isArray(images) ? images.length : (images ? 1 : 0)
-    });
 
     if (!title || !title.trim()) {
       console.warn('[Create Product Validation Error] Missing title');
@@ -417,7 +404,6 @@ export const createProduct = async (req, res) => {
     const productId = 'PROD_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7).toUpperCase();
     const isMongoConnected = mongoose.connection.readyState === 1;
 
-    // Process and filter valid image data strings (rejecting temporary blob: URLs)
     const rawImages = Array.isArray(images) ? images : (images ? [images] : []);
     const processedImages = rawImages.filter(img => typeof img === 'string' && img.trim().length > 0 && !img.startsWith('blob:'));
 
@@ -434,15 +420,8 @@ export const createProduct = async (req, res) => {
       created_at: new Date()
     };
 
-    console.log('[Create Product Pre-Save Audit]', {
-      assignedProductId: productId,
-      assignedUserId: userId,
-      isMongoConnected
-    });
-
     if (isMongoConnected) {
       const newProduct = await Product.create(productPayload);
-      console.log('[Create Product Success] Saved to MongoDB:', newProduct.product_id);
       return res.status(201).json({
         success: true,
         message: 'Craft product added to catalog successfully!',
@@ -450,7 +429,6 @@ export const createProduct = async (req, res) => {
       });
     } else {
       inMemoryProducts.unshift(productPayload);
-      console.log('[Create Product Success] Saved In-Memory:', productPayload.product_id);
       return res.status(201).json({
         success: true,
         message: 'Craft product added to catalog successfully (In-Memory)!',
@@ -458,31 +436,11 @@ export const createProduct = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('[Create Product Error]', {
-      name: error.name,
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({
-        success: false,
-        message: 'Product validation failed',
-        details: error.message
-      });
-    }
-
-    if (error.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        message: 'Duplicate product entry detected'
-      });
-    }
-
+    console.error('[Create Product Error]', error);
     return res.status(500).json({
       success: false,
-      message: 'Unable to publish product. Please check the product details and try again.',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Failed to save product to catalog',
+      error: error.message
     });
   }
 };
@@ -590,19 +548,6 @@ export const deleteProduct = async (req, res) => {
  * Controller: Update Product
  * Endpoint: PUT /api/artisan/products/:product_id
  * Access: Protected (JWT)
- *
- * Security:
- *   - user_id is obtained EXCLUSIVELY from the verified JWT (req.user).
- *   - Any user_id in the request body is ignored.
- *   - Artisan may only update their OWN products (403 if ownership fails).
- *
- * HTTP Status codes:
- *   200 → successful update
- *   400 → validation error (empty title, invalid price/stock)
- *   401 → authentication missing / invalid token
- *   403 → product belongs to another artisan
- *   404 → product not found
- *   500 → unexpected server error
  */
 export const updateProduct = async (req, res) => {
   try {
@@ -616,23 +561,8 @@ export const updateProduct = async (req, res) => {
     }
 
     const productId = req.params.product_id;
+    const { title, description, category, sector, material, product_size, price, stock } = req.body;
 
-    // Strip any attempt to override identity fields from body
-    const {
-      user_id: _ignoredUserId,
-      product_id: _ignoredProductId,
-      _id: _ignoredMongoId,
-      title,
-      description,
-      category,
-      sector,
-      material,
-      product_size,
-      price,
-      stock
-    } = req.body;
-
-    // --- Validation ---
     if (title !== undefined && (!title || !String(title).trim())) {
       return res.status(400).json({ success: false, message: 'Product title must not be empty.' });
     }
@@ -656,26 +586,10 @@ export const updateProduct = async (req, res) => {
     const isMongoConnected = mongoose.connection.readyState === 1;
 
     if (isMongoConnected) {
-      // Fetch the existing product first to verify ownership
       const existing = await Product.findOne({ product_id: productId });
+      if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
+      if (existing.user_id !== userId) return res.status(403).json({ success: false, message: 'Forbidden.' });
 
-      if (!existing) {
-        return res.status(404).json({ success: false, message: 'Product not found.' });
-      }
-
-      if (existing.user_id !== userId) {
-        console.warn('[Update Product] Ownership mismatch', {
-          requestedBy: userId,
-          productOwner: existing.user_id,
-          productId
-        });
-        return res.status(403).json({
-          success: false,
-          message: 'Forbidden. You do not have permission to edit this product.'
-        });
-      }
-
-      // Build update payload — only include fields that were provided
       const updates = {};
       if (title !== undefined) updates.title = String(title).trim();
       if (description !== undefined) updates.description = String(description).trim();
@@ -691,28 +605,11 @@ export const updateProduct = async (req, res) => {
         { $set: updates },
         { new: true, runValidators: true }
       );
-
-      console.log('[Update Product Success] MongoDB:', productId, 'by', userId);
-      return res.status(200).json({
-        success: true,
-        message: 'Product updated successfully!',
-        product: updated
-      });
-
+      return res.status(200).json({ success: true, message: 'Product updated successfully!', product: updated });
     } else {
-      // In-memory fallback
       const idx = inMemoryProducts.findIndex(p => p.product_id === productId);
-
-      if (idx === -1) {
-        return res.status(404).json({ success: false, message: 'Product not found.' });
-      }
-
-      if (inMemoryProducts[idx].user_id !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: 'Forbidden. You do not have permission to edit this product.'
-        });
-      }
+      if (idx === -1) return res.status(404).json({ success: false, message: 'Product not found.' });
+      if (inMemoryProducts[idx].user_id !== userId) return res.status(403).json({ success: false, message: 'Forbidden.' });
 
       const updated = { ...inMemoryProducts[idx] };
       if (title !== undefined) updated.title = String(title).trim();
@@ -725,33 +622,127 @@ export const updateProduct = async (req, res) => {
       if (numericStock !== undefined) updated.stock = numericStock;
 
       inMemoryProducts[idx] = updated;
-      console.log('[Update Product Success] In-Memory:', productId, 'by', userId);
-      return res.status(200).json({
-        success: true,
-        message: 'Product updated successfully!',
-        product: updated
-      });
+      return res.status(200).json({ success: true, message: 'Product updated successfully!', product: updated });
     }
   } catch (error) {
-    console.error('[Update Product Error]', {
-      name: error.name,
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({
-        success: false,
-        message: 'Product validation failed',
-        details: error.message
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: 'Unable to update product. Please try again.',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    console.error('[Update Product Error]', error);
+    return res.status(500).json({ success: false, message: 'Unable to update product.', error: error.message });
   }
 };
 
+/**
+ * Controller: Get B2B Buyer Recommendations for Logged-In Artisan
+ * Endpoint: GET /api/artisan/b2b-recommendations
+ * Access: Protected (JWT)
+ */
+export const getB2BRecommendations = async (req, res) => {
+  try {
+    const userId = getAuthUserId(req) || req.user?.user_id || req.user?.id || req.user?.userId || 'ARTISAN_USER';
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid token payload: user_id missing'
+      });
+    }
+
+    const isMongoConnected = mongoose.connection.readyState === 1;
+    let profile = null;
+
+    if (isMongoConnected) {
+      profile = await ArtisanProfile.findOne({ user_id: userId });
+    } else {
+      profile = inMemoryProfiles.get(userId);
+    }
+
+    const artisanCraftCategory = profile?.craft_category || profile?.primary_craft || profile?.category || '';
+
+    if (!artisanCraftCategory || !artisanCraftCategory.trim()) {
+      return res.status(200).json({
+        success: true,
+        craft_category: null,
+        buyers: []
+      });
+    }
+
+    const b2bApiUrl = process.env.B2B_API_URL || 'http://localhost:5001';
+    const targetUrl = `${b2bApiUrl.replace(/\/+$/, '')}/api/b2b/buyers/for-matching`;
+
+    let b2bBuyers = [];
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const b2bRes = await fetch(targetUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!b2bRes.ok) {
+        console.warn(`[B2B Recommendations] B2B API returned status ${b2bRes.status}`);
+        return res.status(200).json({
+          success: false,
+          message: 'Buyer recommendations are temporarily unavailable.'
+        });
+      }
+
+      b2bBuyers = await b2bRes.json();
+    } catch (b2bErr) {
+      console.warn('[B2B Recommendations] Failed to reach B2B backend API:', b2bErr.message);
+      return res.status(200).json({
+        success: false,
+        message: 'Buyer recommendations are temporarily unavailable.'
+      });
+    }
+
+    if (!Array.isArray(b2bBuyers)) {
+      return res.status(200).json({
+        success: true,
+        craft_category: artisanCraftCategory.trim(),
+        buyers: []
+      });
+    }
+
+    const normalize = (str) => (str || '').toString().toLowerCase().replace(/[\s\-_/&,]+/g, ' ').trim();
+    const artisanNorm = normalize(artisanCraftCategory);
+
+    const matched = b2bBuyers.filter((buyer) => {
+      if (!buyer || !buyer.craft_category) return false;
+      const buyerNorm = normalize(buyer.craft_category);
+      if (!buyerNorm || !artisanNorm) return false;
+
+      if (buyerNorm === artisanNorm || buyerNorm.includes(artisanNorm) || artisanNorm.includes(buyerNorm)) {
+        return true;
+      }
+
+      const aTokens = artisanNorm.split(' ').filter(t => t.length > 2);
+      const bTokens = buyerNorm.split(' ').filter(t => t.length > 2);
+      return aTokens.some(t => bTokens.includes(t));
+    });
+
+    const safeRecommendations = matched.slice(0, 5).map((b) => ({
+      buyer_id: b.buyer_id || b._id || `BYR_${Math.random().toString(36).substring(2, 7)}`,
+      company: b.company || b.company_name || b.name || 'Artisan Craft Wholesale Buyer',
+      location: b.location || 'India',
+      craft_category: b.craft_category || artisanCraftCategory
+    }));
+
+    return res.status(200).json({
+      success: true,
+      craft_category: artisanCraftCategory.trim(),
+      buyers: safeRecommendations
+    });
+  } catch (error) {
+    console.error('[B2B Recommendations Error]', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch B2B buyer recommendations',
+      error: error.message
+    });
+  }
+};

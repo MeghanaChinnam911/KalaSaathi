@@ -7,7 +7,8 @@ import {
   createProduct,
   getProducts,
   deleteProduct,
-  updateProduct
+  updateProduct,
+  getB2BRecommendations
 } from '../controllers/artisanController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -40,6 +41,13 @@ router.get('/dashboard', protect, getDashboard);
  * @access  Private (JWT Required)
  */
 router.get('/analytics', protect, getAnalytics);
+
+/**
+ * @route   GET /api/artisan/b2b-recommendations
+ * @desc    Get matching B2B buyer recommendations for artisan craft category
+ * @access  Private (JWT Required)
+ */
+router.get('/b2b-recommendations', protect, getB2BRecommendations);
 
 /**
  * @route   GET /api/artisan/products

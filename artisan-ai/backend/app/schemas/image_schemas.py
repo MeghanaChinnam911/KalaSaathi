@@ -60,6 +60,8 @@ class ProductAnalysis(BaseModel):
     material_confidence: float
     visual_features: List[str]
     image_quality: ImageQualityMetrics
+    suggested_title: str
+    suggested_description: str
 
 
 class ImageAnalysisResponse(BaseModel):

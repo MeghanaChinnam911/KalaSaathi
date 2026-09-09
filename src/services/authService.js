@@ -526,6 +526,34 @@ class AuthService {
   }
 
   /**
+   * GET /api/artisan/b2b-recommendations
+   * Fetch B2B buyer opportunities matching artisan craft category
+   */
+  async getB2BRecommendations() {
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('No authentication token found.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/artisan/b2b-recommendations`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch B2B recommendations.');
+    }
+
+    return data;
+  }
+
+  /**
    * Google Social Login — Real Top-Level Browser Navigation to OAuth Endpoint
    */
   loginWithSocial(provider) {

@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../i18n';
 import { VirtualBusinessManager } from '../components/VirtualBusinessManager';
-import { enhanceImage, generateCatalog, predictPrice } from '../services/imageAIService';
+import { B2BBuyerOpportunities } from '../components/B2BBuyerOpportunities';
+import { enhanceImage, generateCatalog, predictPrice, analyzeImage } from '../services/imageAIService';
 import { authService } from '../services/authService';
 import { 
   Sparkles, 
@@ -59,7 +60,7 @@ const formatINR = (amount) => {
 };
 
 export const ArtisanDashboardScreen = () => {
-  const { user, handleLogout, setCurrentScreen } = useAuth();
+  const { user, handleLogout, setCurrentScreen, showToast } = useAuth();
   const { t, language, setLanguage, languages } = useTranslation();
 
   // Modals & UI Navigation State
@@ -279,18 +280,35 @@ export const ArtisanDashboardScreen = () => {
           visual_features: catalogData.visual_features || []
         }));
       } catch (catErr) {
-        console.warn('[Catalog Generation Failed]', catErr.message);
-        setCatalogError('AI identification temporarily offline. You can manually enter details.');
-        setProductForm(prev => ({
-          ...prev,
-          title: 'Handcrafted Artisan Item',
-          category: user?.categoryName || user?.category || 'Handicraft',
-          sector: 'Handicraft',
-          material: 'Wood',
-          product_size: 'Medium',
-          description: 'Beautiful handcrafted craft item created with traditional technique.'
-        }));
+        try {
+          const analyzeRes = await analyzeImage(file);
+          if (analyzeRes?.success && analyzeRes?.analysis) {
+            const { analysis } = analyzeRes;
+            setProductForm(prev => ({
+              ...prev,
+              title: prev.title || analysis.suggested_title || 'Handcrafted Artisan Item',
+              category: prev.category || (analysis.product_category && analysis.product_category !== 'handicrafts' ? analysis.product_category.toUpperCase() : prev.category || 'Handicraft'),
+              description: prev.description || analysis.suggested_description || 'Beautiful handcrafted craft item created with traditional technique.'
+            }));
+          } else {
+            throw new Error('Analysis offline');
+          }
+        } catch (anErr) {
+          console.warn('[Catalog Generation Failed]', catErr.message);
+          setCatalogError('AI identification temporarily offline. You can manually enter details.');
+          setProductForm(prev => ({
+            ...prev,
+            title: 'Handcrafted Artisan Item',
+            category: user?.categoryName || user?.category || 'Handicraft',
+            sector: 'Handicraft',
+            material: 'Wood',
+            product_size: 'Medium',
+            description: 'Beautiful handcrafted craft item created with traditional technique.'
+          }));
+        }
       }
+    } catch (err) {
+      setEnhancementError(err.message || 'Photo enhancement is temporarily unavailable. You can try again.');
     } finally {
       setIsProcessingAI(false);
     }
@@ -701,6 +719,9 @@ const compressImageForPayload = (blobOrFile, maxWidth = 1000, maxHeight = 1000, 
         {/* Virtual Business Manager Section */}
         <VirtualBusinessManager />
 
+        {/* B2B Buyer Opportunities Section */}
+        <B2BBuyerOpportunities showToast={showToast} />
+
         {/* Product Catalog Section — ownership-filtered: only current artisan's products */}
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between">
@@ -716,7 +737,7 @@ const compressImageForPayload = (blobOrFile, maxWidth = 1000, maxHeight = 1000, 
               <p className="text-xs">Loading craft products...</p>
             </div>
           ) : products.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {products.map((prod) => (
                 <div
                   key={prod.product_id || prod._id}

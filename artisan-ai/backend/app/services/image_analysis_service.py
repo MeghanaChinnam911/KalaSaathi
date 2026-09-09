@@ -301,6 +301,29 @@ async def analyze_product_image(file: UploadFile) -> ImageAnalysisResponse:
     if mapped_category == "handicrafts" and model_conf > 0.3:
         mapped_type = label_name.replace("_", " ")
 
+    # 8. Generate AI Product Title and Description from Analysis
+    color_names = [c.name for c in dominant_colors[:2]]
+    color_str = " & ".join(c.capitalize() for c in color_names) if color_names else ""
+    
+    cat_title = mapped_category.capitalize() if mapped_category != "handicrafts" else "Handicraft"
+    type_title = mapped_type.title()
+    material_str = mapped_material.capitalize() if mapped_material != "unknown" else ""
+
+    title_parts = [p for p in [color_str, material_str, type_title] if p]
+    suggested_title = " ".join(title_parts) if title_parts else f"Artisan Handcrafted {cat_title}"
+
+    desc_parts = []
+    desc_parts.append(f"Authentic Indian {mapped_type} handcrafted by skilled artisans.")
+    if color_str:
+        desc_parts.append(f"Features rich {color_str} color tones.")
+    if material_str:
+        desc_parts.append(f"Made using high-quality natural {mapped_material}.")
+    if "isolated product foreground" in visual_features:
+        desc_parts.append("Studio-quality background-cleared product image.")
+    desc_parts.append("Perfect addition to home decor or traditional handicraft collections.")
+    
+    suggested_description = " ".join(desc_parts)
+
     product_analysis = ProductAnalysis(
         product_category=mapped_category,
         product_type=mapped_type,
@@ -310,6 +333,8 @@ async def analyze_product_image(file: UploadFile) -> ImageAnalysisResponse:
         material_confidence=mat_conf,
         visual_features=visual_features,
         image_quality=quality_metrics,
+        suggested_title=suggested_title,
+        suggested_description=suggested_description,
     )
 
     return ImageAnalysisResponse(
