@@ -11,7 +11,7 @@ export const inMemoryProducts = [];
  * Helper to resolve authenticated user_id from JWT payload
  */
 const getAuthUserId = (req) => {
-  return req.user?.user_id || req.user?.id || req.user?.userId || null;
+  return req.user?.user_id || null;
 };
 
 /**
@@ -548,10 +548,28 @@ export const deleteProduct = async (req, res) => {
     const isMongoConnected = mongoose.connection.readyState === 1;
 
     if (isMongoConnected) {
-      await Product.deleteOne({ product_id: productId, user_id: userId });
+      const result = await Product.deleteOne({ product_id: productId, user_id: userId });
+      if (result.deletedCount === 0) {
+        const existing = await Product.exists({ product_id: productId });
+        return res.status(existing ? 403 : 404).json({
+          success: false,
+          message: existing
+            ? 'Forbidden. You do not have permission to delete this product.'
+            : 'Product not found.'
+        });
+      }
     } else {
       const idx = inMemoryProducts.findIndex(p => p.product_id === productId && p.user_id === userId);
-      if (idx !== -1) inMemoryProducts.splice(idx, 1);
+      if (idx === -1) {
+        const exists = inMemoryProducts.some(p => p.product_id === productId);
+        return res.status(exists ? 403 : 404).json({
+          success: false,
+          message: exists
+            ? 'Forbidden. You do not have permission to delete this product.'
+            : 'Product not found.'
+        });
+      }
+      inMemoryProducts.splice(idx, 1);
     }
 
     return res.status(200).json({
