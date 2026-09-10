@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const ARTISAN_BACKEND = 'http://localhost:5000';
-const B2B_BACKEND = 'http://localhost:5001';
+const B2B_BACKEND = process.env.B2B_API_URL || 'https://e-commerce-q495.onrender.com';
 const JWT_SECRET = process.env.JWT_SECRET || 'kalasaathi_jwt_super_secret_key_2026';
 
 const B2B_JWT_SECRET = process.env.B2B_JWT_SECRET || 'kalasaathi_b2b_buyer_secret_key_2026_secure_jwt';

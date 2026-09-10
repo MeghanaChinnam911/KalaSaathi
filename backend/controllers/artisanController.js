@@ -684,7 +684,7 @@ export const getB2BRecommendations = async (req, res) => {
       });
     }
 
-    const b2bApiUrl = process.env.B2B_API_URL || 'http://localhost:5001';
+    const b2bApiUrl = process.env.B2B_API_URL || 'https://e-commerce-q495.onrender.com';
     const targetUrl = `${b2bApiUrl.replace(/\/+$/, '')}/api/b2b/buyers/for-matching`;
 
     let b2bBuyers = [];
@@ -783,7 +783,7 @@ export const getB2BInquiries = async (req, res) => {
       });
     }
 
-    const b2bApiUrl = process.env.B2B_API_URL || 'http://localhost:5001';
+    const b2bApiUrl = process.env.B2B_API_URL || 'https://e-commerce-q495.onrender.com';
     const targetUrl = `${b2bApiUrl.replace(/\/+$/, '')}/api/b2b/inquiries/for-artisan`;
 
     const b2bRes = await fetch(targetUrl, {
@@ -843,7 +843,7 @@ export const updateB2BInquiryStatus = async (req, res) => {
       });
     }
 
-    const b2bApiUrl = process.env.B2B_API_URL || 'http://localhost:5001';
+    const b2bApiUrl = process.env.B2B_API_URL || 'https://e-commerce-q495.onrender.com';
     const targetUrl = `${b2bApiUrl.replace(/\/+$/, '')}/api/b2b/inquiries/${id}/status`;
 
     const b2bRes = await fetch(targetUrl, {
@@ -885,7 +885,7 @@ export const getB2BOrders = async (req, res) => {
       });
     }
 
-    const b2bApiUrl = process.env.B2B_API_URL || 'http://localhost:5001';
+    const b2bApiUrl = process.env.B2B_API_URL || 'https://e-commerce-q495.onrender.com';
     const targetUrl = `${b2bApiUrl.replace(/\/+$/, '')}/api/b2b/orders/for-artisan`;
 
     const b2bRes = await fetch(targetUrl, {
@@ -946,7 +946,7 @@ export const updateB2BOrderStatus = async (req, res) => {
     }
 
     const targetStatus = status.toLowerCase();
-    const b2bApiUrl = process.env.B2B_API_URL || 'http://localhost:5001';
+    const b2bApiUrl = process.env.B2B_API_URL || 'https://e-commerce-q495.onrender.com';
     const targetUrl = `${b2bApiUrl.replace(/\/+$/, '')}/api/b2b/orders/${id}/status`;
 
     const b2bRes = await fetch(targetUrl, {
@@ -1038,7 +1038,7 @@ export const createB2BConnection = async (req, res) => {
       });
     }
 
-    const b2bApiUrl = process.env.B2B_API_URL || 'http://localhost:5001';
+    const b2bApiUrl = process.env.B2B_API_URL || 'https://e-commerce-q495.onrender.com';
     const targetUrl = `${b2bApiUrl.replace(/\/+$/, '')}/api/b2b/connections`;
 
     const b2bRes = await fetch(targetUrl, {
@@ -1080,7 +1080,7 @@ export const getB2BConnections = async (req, res) => {
       });
     }
 
-    const b2bApiUrl = process.env.B2B_API_URL || 'http://localhost:5001';
+    const b2bApiUrl = process.env.B2B_API_URL || 'https://e-commerce-q495.onrender.com';
     const targetUrl = `${b2bApiUrl.replace(/\/+$/, '')}/api/b2b/connections/for-artisan`;
 
     const b2bRes = await fetch(targetUrl, {
