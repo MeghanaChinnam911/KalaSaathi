@@ -1,23 +1,32 @@
 /**
  * Image AI & Pricing Service for KalaSaathi Frontend
- * Communicates with FastAPI Backend (http://127.0.0.1:8000 or http://localhost:8000)
+ * Communicates with FastAPI Backend (https://kalasaathi-3.onrender.com or http://127.0.0.1:8000)
  */
+
+const AI_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_AI_API_URL)
+  ? import.meta.env.VITE_AI_API_URL
+  : 'https://kalasaathi-3.onrender.com';
 
 /**
  * Helper to get primary API base URL and fallback URL
  */
 function getApiUrls(endpointPath) {
-  const currentHost = typeof window !== 'undefined' && window.location ? window.location.hostname : '127.0.0.1';
-  
-  const primaryHost = currentHost || '127.0.0.1';
-  const fallbackHost = primaryHost === '127.0.0.1' ? 'localhost' : '127.0.0.1';
-
   // Support both full path (e.g. 'image/enhance-image') or short path (e.g. 'analyze' -> 'image/analyze')
   const fullPath = endpointPath.includes('/') ? endpointPath : `image/${endpointPath}`;
 
+  const cleanBase = AI_BASE_URL.replace(/\/$/, '');
+  const primaryUrl = `${cleanBase}/api/v1/${fullPath}`;
+
+  // Optional local fallback if running on localhost and primary URL fails
+  const currentHost = typeof window !== 'undefined' && window.location ? window.location.hostname : '';
+  const isLocal = currentHost === 'localhost' || currentHost === '127.0.0.1';
+  const fallbackUrl = isLocal 
+    ? `http://127.0.0.1:8000/api/v1/${fullPath}` 
+    : primaryUrl;
+
   return {
-    primaryUrl: `http://${primaryHost}:8000/api/v1/${fullPath}`,
-    fallbackUrl: `http://${fallbackHost}:8000/api/v1/${fullPath}`
+    primaryUrl,
+    fallbackUrl
   };
 }
 
@@ -31,16 +40,20 @@ async function fetchWithFallback(endpointPath, options) {
     const response = await fetch(primaryUrl, options);
     return response;
   } catch (primaryErr) {
-    console.warn(`[AI Service] Primary request to ${primaryUrl} failed. Retrying fallback to ${fallbackUrl}...`, primaryErr);
-    try {
-      const fallbackResponse = await fetch(fallbackUrl, options);
-      return fallbackResponse;
-    } catch (fallbackErr) {
-      console.error('[AI Service] Both primary and fallback endpoints failed:', fallbackErr);
-      throw primaryErr;
+    if (primaryUrl !== fallbackUrl) {
+      console.warn(`[AI Service] Primary request to ${primaryUrl} failed. Retrying fallback to ${fallbackUrl}...`, primaryErr);
+      try {
+        const fallbackResponse = await fetch(fallbackUrl, options);
+        return fallbackResponse;
+      } catch (fallbackErr) {
+        console.error('[AI Service] Both primary and fallback endpoints failed:', fallbackErr);
+        throw primaryErr;
+      }
     }
+    throw primaryErr;
   }
 }
+
 
 /**
  * Sends a product image to FastAPI Real-ESRGAN x2 AI model for enhancement.
@@ -100,7 +113,7 @@ export async function enhanceImage(file) {
     };
   } catch (err) {
     if (err.name === 'TypeError' && err.message.includes('fetch')) {
-      throw new Error('Unable to connect to FastAPI AI Backend. Ensure server is running at http://127.0.0.1:8000 or http://localhost:8000');
+      throw new Error(`Unable to connect to FastAPI AI Backend at ${AI_BASE_URL}. Ensure the service is accessible.`);
     }
     throw err;
   }
@@ -142,7 +155,7 @@ export async function generateCatalog(file) {
     return data;
   } catch (err) {
     if (err.name === 'TypeError' && err.message.includes('fetch')) {
-      throw new Error('Unable to connect to FastAPI AI Backend. Ensure server is running at http://127.0.0.1:8000 or http://localhost:8000');
+      throw new Error(`Unable to connect to FastAPI AI Backend at ${AI_BASE_URL}. Ensure the service is accessible.`);
     }
     throw err;
   }
@@ -180,7 +193,7 @@ export async function predictPrice(payload) {
     return data;
   } catch (err) {
     if (err.name === 'TypeError' && err.message.includes('fetch')) {
-      throw new Error('Unable to connect to FastAPI AI Backend. Ensure server is running at http://127.0.0.1:8000 or http://localhost:8000');
+      throw new Error(`Unable to connect to FastAPI AI Backend at ${AI_BASE_URL}. Ensure the service is accessible.`);
     }
     throw err;
   }
