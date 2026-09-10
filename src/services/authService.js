@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) ? import.meta.env.VITE_API_URL : 'https://kalasaathi.onrender.com/api';
 
 class AuthService {
   constructor() {
@@ -396,6 +396,286 @@ class AuthService {
       success: true,
       analytics: data.analytics
     };
+  }
+
+  /**
+   * POST /api/artisan/products
+   */
+  async createProduct(productData) {
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('Not authenticated. Token missing.');
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/artisan/products`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(productData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        console.error('[Create Product API Error]', response.status, data);
+        throw new Error(data.message || 'Unable to publish product. Please check product details and try again.');
+      }
+
+      return data;
+    } catch (err) {
+      console.error('[Create Product Fetch Error]', err.message);
+      throw err;
+    }
+  }
+
+  /**
+   * PUT /api/artisan/products/:productId
+   * Updates an existing craft product (ownership verified on backend).
+   * @param {string} productId - The product_id of the product to update
+   * @param {Object} updateData - Fields to update (title, description, category, sector, material, product_size, price, stock)
+   */
+  async updateProduct(productId, updateData) {
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('Not authenticated. Token missing.');
+    }
+
+    if (!productId) {
+      throw new Error('Product ID is required for update.');
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/artisan/products/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        console.error('[Update Product API Error]', response.status, data);
+        throw new Error(data.message || 'Failed to update product.');
+      }
+
+      return data;
+    } catch (err) {
+      console.error('[Update Product Fetch Error]', err.message);
+      throw err;
+    }
+  }
+
+  /**
+   * GET /api/artisan/products
+   */
+  async getProducts() {
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('No authentication token found.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/artisan/products`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to fetch products');
+    }
+
+    return data;
+  }
+
+  /**
+   * DELETE /api/artisan/products/:id
+   */
+  async deleteProduct(productId) {
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('No authentication token found.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/artisan/products/${productId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to delete product');
+    }
+
+    return data;
+  }
+
+  /**
+   * GET /api/artisan/b2b-recommendations
+   * Fetch B2B buyer opportunities matching artisan craft category
+   */
+  async getB2BRecommendations() {
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('No authentication token found.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/artisan/b2b-recommendations`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch B2B recommendations.');
+    }
+
+    return data;
+  }
+
+  /**
+   * POST /api/artisan/b2b/connect
+   * Initiate connection request to a B2B buyer
+   */
+  async connectB2BBuyer(buyerId, productId = '') {
+    const token = this.getToken();
+    if (!token) throw new Error('No authentication token found.');
+
+    const response = await fetch(`${API_BASE_URL}/artisan/b2b/connect`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ buyer_id: buyerId, product_id: productId })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to send connection request.');
+    return data;
+  }
+
+  /**
+   * GET /api/artisan/b2b/connections
+   * Get all active connections and statuses for logged-in artisan
+   */
+  async getB2BConnections() {
+    const token = this.getToken();
+    if (!token) throw new Error('No authentication token found.');
+
+    const response = await fetch(`${API_BASE_URL}/artisan/b2b/connections`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to fetch B2B connections.');
+    return data;
+  }
+
+  /**
+   * GET /api/artisan/b2b/inquiries
+   */
+  async getB2BInquiries() {
+    const token = this.getToken();
+    if (!token) throw new Error('No authentication token found.');
+
+    const response = await fetch(`${API_BASE_URL}/artisan/b2b/inquiries`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to fetch B2B inquiries.');
+    return data;
+  }
+
+  /**
+   * PUT /api/artisan/b2b/inquiries/:id/status
+   */
+  async updateB2BInquiryStatus(inquiryId, status) {
+    const token = this.getToken();
+    if (!token) throw new Error('No authentication token found.');
+
+    const response = await fetch(`${API_BASE_URL}/artisan/b2b/inquiries/${inquiryId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ status })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to update inquiry status.');
+    return data;
+  }
+
+  /**
+   * GET /api/artisan/b2b/orders
+   */
+  async getB2BOrders() {
+    const token = this.getToken();
+    if (!token) throw new Error('No authentication token found.');
+
+    const response = await fetch(`${API_BASE_URL}/artisan/b2b/orders`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to fetch B2B orders.');
+    return data;
+  }
+
+  /**
+   * PUT /api/artisan/b2b/orders/:id/status
+   */
+  async updateB2BOrderStatus(orderId, status) {
+    const token = this.getToken();
+    if (!token) throw new Error('No authentication token found.');
+
+    const response = await fetch(`${API_BASE_URL}/artisan/b2b/orders/${orderId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ status })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to update order status.');
+    return data;
   }
 
   /**

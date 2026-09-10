@@ -10,7 +10,7 @@ const router = express.Router();
 const getGoogleConfig = () => {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const callbackUrl = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback';
+  const callbackUrl = process.env.GOOGLE_CALLBACK_URL || 'https://kalasaathi.onrender.com/api/auth/google/callback';
 
   const isConfigured = Boolean(
     clientId && !clientId.includes('YOUR_GOOGLE') && clientId.trim() !== '' &&

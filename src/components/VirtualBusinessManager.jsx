@@ -67,21 +67,6 @@ export const VirtualBusinessManager = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-5 rounded-2xl bg-red-50 border border-red-200 text-center space-y-3">
-        <AlertCircle className="w-8 h-8 text-red-500 mx-auto" />
-        <p className="text-xs font-semibold text-red-700">{error}</p>
-        <button
-          onClick={fetchAnalytics}
-          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Retry</span>
-        </button>
-      </div>
-    );
-  }
 
   const {
     totalProducts = 0,
@@ -110,6 +95,23 @@ export const VirtualBusinessManager = () => {
           {t('dashboard.virtualManagerSubtitle') || 'Understand your craft business at a glance'}
         </p>
       </div>
+
+      {/* Inline API Failure Alert Banner */}
+      {error && (
+        <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-between gap-3 text-xs font-semibold">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={fetchAnalytics}
+            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg transition inline-flex items-center gap-1 cursor-pointer"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
 
       {/* 4 Primary KPI Analytics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
