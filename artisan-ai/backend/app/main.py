@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.config import config
 from app.api.image_routes import router as image_router
 from app.api.catalog_routes import router as catalog_router
 from app.api.pricing_routes import router as pricing_router
@@ -22,6 +23,7 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://localhost:4173",
         "http://127.0.0.1:4173",
+        *config.FRONTEND_ORIGINS,
     ],
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,

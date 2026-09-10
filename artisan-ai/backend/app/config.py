@@ -3,6 +3,11 @@ import os
 class Config:
     DATABASE_URL = os.getenv("DATABASE_URL", "")
     STORAGE_PATH = os.getenv("STORAGE_PATH", "./storage")
+    FRONTEND_ORIGINS = [
+        origin.strip()
+        for origin in os.getenv("FRONTEND_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
     AI_ENV = os.getenv("AI_ENV", "development")
     MAX_IMAGE_DIMENSION = int(os.getenv("MAX_IMAGE_DIMENSION", "1920"))
     BACKGROUND_REMOVAL_MODEL = os.getenv("BACKGROUND_REMOVAL_MODEL", "u2netp")
