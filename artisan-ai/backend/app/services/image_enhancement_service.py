@@ -5,7 +5,6 @@ from typing import Optional, Tuple, Any
 from fastapi import UploadFile, HTTPException, status
 from PIL import Image, UnidentifiedImageError, ImageFilter, ImageDraw
 import numpy as np
-import rembg
 
 from app.config import config
 from app.schemas.image_schemas import ImageEnhancementResponse
@@ -259,6 +258,7 @@ async def enhance_product_image_pipeline(file: UploadFile) -> Tuple[bytes, Image
     # 5. U2-Net AI Background Removal & Clean Studio Neutral Off-White Compositing
     try:
         session = get_rembg_session()
+        import rembg
         # Extract product foreground mask with U2-Net model
         transparent_bytes = rembg.remove(work_bytes, session=session)
         fg_image = Image.open(io.BytesIO(transparent_bytes)).convert("RGBA")
