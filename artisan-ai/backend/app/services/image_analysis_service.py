@@ -1,14 +1,9 @@
 import io
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Any
 from fastapi import UploadFile, HTTPException, status
 from PIL import Image, UnidentifiedImageError
 import numpy as np
 import cv2
-import torch
-import torch.nn as nn
-import torchvision.models as models
-
-from torchvision.models import MobileNet_V3_Small_Weights
 
 from app.schemas.image_schemas import (
     ImageAnalysisResponse,
@@ -59,14 +54,17 @@ ARTISAN_MAPPINGS = [
 ]
 
 # Singleton PyTorch Vision Model Cache
-_vision_model: Optional[nn.Module] = None
+_vision_model: Optional[Any] = None
 _vision_weights = None
 
 
-def get_vision_model() -> Tuple[nn.Module, object]:
+def get_vision_model() -> Tuple[Any, object]:
     """Loads and caches the pretrained PyTorch MobileNetV3 Small model singleton."""
     global _vision_model, _vision_weights
     if _vision_model is None:
+        import torch
+        import torchvision.models as models
+        from torchvision.models import MobileNet_V3_Small_Weights
         try:
             _vision_weights = MobileNet_V3_Small_Weights.DEFAULT
             model = models.mobilenet_v3_small(weights=_vision_weights)
@@ -75,6 +73,7 @@ def get_vision_model() -> Tuple[nn.Module, object]:
         except Exception as e:
             raise RuntimeError(f"Failed to initialize vision AI model: {str(e)}")
     return _vision_model, _vision_weights
+
 
 
 def map_rgb_to_color_name(rgb: np.ndarray) -> str:
@@ -263,6 +262,7 @@ async def analyze_product_image(file: UploadFile) -> ImageAnalysisResponse:
 
     # 6. Execute Pretrained PyTorch Vision Model Semantic Inference
     try:
+        import torch
         model, weights = get_vision_model()
         preprocess = weights.transforms()
         rgb_img = pil_img.convert("RGB")
@@ -276,6 +276,7 @@ async def analyze_product_image(file: UploadFile) -> ImageAnalysisResponse:
         label_name = weights.meta["categories"][top_idx.item()].lower()
         model_conf = round(float(top_prob.item()), 2)
     except Exception as e:
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Vision model inference failed: {str(e)}"

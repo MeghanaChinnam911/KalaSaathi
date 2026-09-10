@@ -1,8 +1,7 @@
 import io
-from typing import Optional
+from typing import Optional, Any
 from fastapi import UploadFile, HTTPException, status
 from PIL import Image, UnidentifiedImageError
-import rembg
 
 from app.config import config
 from app.schemas.image_schemas import BackgroundRemovalResponse
@@ -12,19 +11,21 @@ ALLOWED_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
 
 # Global singleton session cache for ONNX U²-Net model
-_rembg_session: Optional[rembg.sessions.BaseSession] = None
+_rembg_session: Optional[Any] = None
 
 
-def get_rembg_session() -> rembg.sessions.BaseSession:
+def get_rembg_session() -> Any:
     """Returns singleton cached rembg model session, initializing once on first call."""
     global _rembg_session
     if _rembg_session is None:
+        import rembg
         model_name = config.BACKGROUND_REMOVAL_MODEL
         try:
             _rembg_session = rembg.new_session(model_name)
         except Exception as e:
             raise RuntimeError(f"Failed to initialize background removal AI model '{model_name}': {str(e)}")
     return _rembg_session
+
 
 
 async def remove_product_background(file: UploadFile) -> BackgroundRemovalResponse:

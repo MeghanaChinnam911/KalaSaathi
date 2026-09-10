@@ -3,12 +3,6 @@ import sys
 from datetime import datetime
 from typing import Dict, Any, Tuple
 
-# Ensure artisan-ai root is in sys.path for importing ml.predict_price
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
-
-from ml.predict_price import predict_price
 from app.schemas.pricing import (
     PricingPredictionRequest,
     PricingPredictionResponse,
@@ -38,6 +32,12 @@ def predict_market_price_service(request: PricingPredictionRequest) -> PricingPr
     Converts image-derived and artisan inputs into exact feature schema expected by saved XGBoost model.
     Handles fallbacks safely and tracks field provenance explicitly.
     """
+    # Ensure artisan-ai root is in sys.path for importing ml.predict_price
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    if root_dir not in sys.path:
+        sys.path.insert(0, root_dir)
+    from ml.predict_price import predict_price
+
     now = datetime.now()
     field_breakdown: Dict[str, FieldProvenance] = {}
     business_assumptions: Dict[str, str] = {}

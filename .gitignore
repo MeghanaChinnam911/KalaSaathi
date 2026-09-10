@@ -18,3 +18,7 @@ yarn-error.log*
 artisan-ai/backend/storage/*.png
 artisan-ai/backend/storage/*.jpeg
 artisan-ai/backend/storage/*.jpg
+artisan-ai/backend/storage/*.webp
+artisan-ai/backend/.venv/
+.venv/
+

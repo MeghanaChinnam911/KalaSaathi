@@ -1,8 +1,5 @@
 import os
 import json
-import joblib
-import pandas as pd
-import numpy as np
 from datetime import datetime
 
 _MODEL_PIPELINE = None
@@ -12,6 +9,8 @@ def load_pricing_model():
     global _MODEL_PIPELINE, _MODEL_METADATA
     if _MODEL_PIPELINE is not None:
         return _MODEL_PIPELINE, _MODEL_METADATA
+
+    import joblib
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(base_dir, 'models', 'price_prediction_model.joblib')
@@ -33,6 +32,9 @@ def predict_price(input_data):
     Accepts a single dict or list of dicts/DataFrame representing craft product details.
     Returns predicted market price (float >= 0) or list of predictions.
     """
+    import pandas as pd
+    import numpy as np
+
     pipeline, _ = load_pricing_model()
 
     # Normalize input to pandas DataFrame
