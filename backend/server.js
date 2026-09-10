@@ -68,7 +68,7 @@ app.listen(PORT, () => {
   console.log(`- MONGODB_URI configured           : ${Boolean(process.env.MONGODB_URI && !process.env.MONGODB_URI.includes('YOUR_MONGODB'))}`);
   console.log(`- Google Client ID configured      : ${Boolean(process.env.GOOGLE_CLIENT_ID && !process.env.GOOGLE_CLIENT_ID.includes('YOUR_GOOGLE'))}`);
   console.log(`- Google Client Secret configured  : ${Boolean(process.env.GOOGLE_CLIENT_SECRET && !process.env.GOOGLE_CLIENT_SECRET.includes('YOUR_GOOGLE'))}`);
-  console.log(`- Google Callback URL              : ${process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback'}`);
+  console.log(`- Google Callback URL              : ${process.env.GOOGLE_CALLBACK_URL || 'https://kalasaathi.onrender.com/api/auth/google/callback'}`);
   console.log(`- SMTP Email Service Host          : ${process.env.EMAIL_HOST || 'smtp.gmail.com'}`);
   console.log(`- SMTP Email User Configured       : ${Boolean(process.env.EMAIL_USER && !process.env.EMAIL_USER.includes('your-email'))}`);
   console.log(`- SMTP App Password Configured     : ${Boolean(process.env.EMAIL_APP_PASSWORD && !process.env.EMAIL_APP_PASSWORD.includes('your-app-password'))}`);
