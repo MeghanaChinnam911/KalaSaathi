@@ -255,16 +255,8 @@ async def enhance_product_image_pipeline(file: UploadFile) -> Tuple[bytes, Image
     working_pil.save(work_buf, format=work_fmt)
     work_bytes = work_buf.getvalue()
 
-    # 5. U2-Net AI Background Removal & Clean Studio Neutral Off-White Compositing
-    try:
-        session = get_rembg_session()
-        import rembg
-        # Extract product foreground mask with U2-Net model
-        transparent_bytes = rembg.remove(work_bytes, session=session)
-        fg_image = Image.open(io.BytesIO(transparent_bytes)).convert("RGBA")
-    except Exception:
-        # Fallback to working image converted to RGBA if rembg segmentation fails
-        fg_image = working_pil.convert("RGBA")
+    # 5. Fast Studio Neutral Off-White Compositing
+    fg_image = working_pil.convert("RGBA")
 
     # Extract product foreground alpha mask
     alpha_mask = fg_image.getchannel("A")
