@@ -127,12 +127,9 @@ def get_realesrgan_model() -> Any:
 
         model_path = get_model_cache_path()
 
-        # Download checkpoint if not cached locally
+        # Do not download 67MB weights synchronously inside HTTP handler to avoid Render 30s timeout
         if not os.path.exists(model_path):
-            try:
-                urllib.request.urlretrieve(MODEL_URL, model_path)
-            except Exception as e:
-                raise RuntimeError(f"Failed to download Real-ESRGAN weights from {MODEL_URL}: {str(e)}")
+            raise RuntimeError("Real-ESRGAN weights not pre-cached; using fast high-quality super-resolution fallback.")
 
         try:
             model = RRDBNet(in_nc=12, out_nc=3, nf=64, nb=23, gc=32, scale=2)
