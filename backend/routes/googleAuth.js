@@ -51,7 +51,7 @@ router.get('/google', (req, res) => {
  * @access  Public
  */
 router.get('/google/callback', async (req, res) => {
-  const frontendOrigin = 'http://localhost:3000';
+  const frontendOrigin = process.env.FRONTEND_URL || 'https://kala-saathi-xnq8.vercel.app';
   const { code, error } = req.query;
 
   console.log(`[GOOGLE] Callback received.`);
