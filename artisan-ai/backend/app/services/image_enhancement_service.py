@@ -1,13 +1,10 @@
 import io
 import os
 import urllib.request
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Any
 from fastapi import UploadFile, HTTPException, status
 from PIL import Image, UnidentifiedImageError, ImageFilter, ImageDraw
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import rembg
 
 from app.config import config
@@ -30,21 +27,20 @@ def create_subtle_grounding_shadow(alpha_mask: Image.Image, width: int, height: 
     if not bbox:
         return shadow_layer
 
-    left, top, right, bottom = bbox
-    prod_w = right - left
-    prod_h = bottom - top
+    min_x, min_y, max_x, max_y = bbox
+    product_w = max_x - min_x
+    product_h = max_y - min_y
 
-    shadow_w = int(prod_w * 0.85)
-    shadow_h = max(4, int(prod_h * 0.08))
-    cx = (left + right) // 2
-    cy = bottom - int(shadow_h * 0.25)
+    shadow_w = int(product_w * 0.9)
+    shadow_h = max(6, int(product_h * 0.08))
+    center_x = (min_x + max_x) // 2
 
-    shadow_box = (
-        max(0, cx - shadow_w // 2),
-        max(0, cy - shadow_h // 2),
-        min(width, cx + shadow_w // 2),
-        min(height, cy + shadow_h // 2)
-    )
+    shadow_box = [
+        center_x - shadow_w // 2,
+        max_y - shadow_h // 2,
+        center_x + shadow_w // 2,
+        max_y + shadow_h // 2
+    ]
 
     if shadow_box[2] > shadow_box[0] and shadow_box[3] > shadow_box[1]:
         shadow_draw = Image.new("RGBA", (width, height), (0, 0, 0, 0))
@@ -57,75 +53,8 @@ def create_subtle_grounding_shadow(alpha_mask: Image.Image, width: int, height: 
     return shadow_layer
 
 
-# --- PyTorch Real-ESRGAN x2 Network Architecture ---
-
-class ResidualDenseBlock_5C(nn.Module):
-    def __init__(self, nf: int = 64, gc: int = 32):
-        super().__init__()
-        self.conv1 = nn.Conv2d(nf, gc, 3, 1, 1)
-        self.conv2 = nn.Conv2d(nf + gc, gc, 3, 1, 1)
-        self.conv3 = nn.Conv2d(nf + 2 * gc, gc, 3, 1, 1)
-        self.conv4 = nn.Conv2d(nf + 3 * gc, gc, 3, 1, 1)
-        self.conv5 = nn.Conv2d(nf + 4 * gc, nf, 3, 1, 1)
-        self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x1 = self.lrelu(self.conv1(x))
-        x2 = self.lrelu(self.conv2(torch.cat((x, x1), 1)))
-        x3 = self.lrelu(self.conv3(torch.cat((x, x1, x2), 1)))
-        x4 = self.lrelu(self.conv4(torch.cat((x, x1, x2, x3), 1)))
-        x5 = self.conv5(torch.cat((x, x1, x2, x3, x4), 1))
-        return x5 * 0.2 + x
-
-
-class RRDB(nn.Module):
-    def __init__(self, nf: int = 64, gc: int = 32):
-        super().__init__()
-        self.rdb1 = ResidualDenseBlock_5C(nf, gc)
-        self.rdb2 = ResidualDenseBlock_5C(nf, gc)
-        self.rdb3 = ResidualDenseBlock_5C(nf, gc)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.rdb1(x)
-        out = self.rdb2(out)
-        out = self.rdb3(out)
-        return out * 0.2 + x
-
-
-class RRDBNet(nn.Module):
-    """
-    Real-ESRGAN x2 Architecture:
-    1. Pixel Unshuffle (scale=2): Downsamples input (H, W) by 2 into 12 channels at (H/2, W/2).
-    2. RRDB Trunk: Processes features at (H/2, W/2).
-    3. Stage 1 Upsampling (conv_up1 + nearest 2x): (H/2, W/2) -> (H, W).
-    4. Stage 2 Upsampling (conv_up2 + nearest 2x): (H, W) -> (2H, 2W).
-    Net Spatial Scale Factor: 1/2 * 2 * 2 = 2 (exactly 2x resolution increase).
-    """
-    def __init__(self, in_nc: int = 12, out_nc: int = 3, nf: int = 64, nb: int = 23, gc: int = 32, scale: int = 2):
-        super().__init__()
-        self.scale = scale
-        self.conv_first = nn.Conv2d(in_nc, nf, 3, 1, 1)
-        self.body = nn.Sequential(*[RRDB(nf=nf, gc=gc) for _ in range(nb)])
-        self.conv_body = nn.Conv2d(nf, nf, 3, 1, 1)
-        self.conv_up1 = nn.Conv2d(nf, nf, 3, 1, 1)
-        self.conv_up2 = nn.Conv2d(nf, nf, 3, 1, 1)
-        self.conv_hr = nn.Conv2d(nf, nf, 3, 1, 1)
-        self.conv_last = nn.Conv2d(nf, out_nc, 3, 1, 1)
-        self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        feat = F.pixel_unshuffle(x, 2)
-        fea = self.conv_first(feat)
-        trunk = self.conv_body(self.body(fea))
-        fea = fea + trunk
-        fea = self.lrelu(self.conv_up1(F.interpolate(fea, scale_factor=2, mode="nearest")))
-        fea = self.lrelu(self.conv_up2(F.interpolate(fea, scale_factor=2, mode="nearest")))
-        out = self.conv_last(self.lrelu(self.conv_hr(fea)))
-        return out
-
-
 # Singleton Model Cache Instance
-_enhancement_model: Optional[RRDBNet] = None
+_enhancement_model: Optional[Any] = None
 
 
 def get_model_cache_path() -> str:
@@ -135,10 +64,68 @@ def get_model_cache_path() -> str:
     return os.path.join(cache_dir, "RealESRGAN_x2plus.pth")
 
 
-def get_realesrgan_model() -> RRDBNet:
-    """Loads and caches the Real-ESRGAN x2 PyTorch model singleton."""
+def get_realesrgan_model() -> Any:
+    """Loads and caches the Real-ESRGAN x2 PyTorch model singleton (lazy loaded)."""
     global _enhancement_model
     if _enhancement_model is None:
+        import torch
+        import torch.nn as nn
+        import torch.nn.functional as F
+
+        class ResidualDenseBlock_5C(nn.Module):
+            def __init__(self, nf: int = 64, gc: int = 32):
+                super().__init__()
+                self.conv1 = nn.Conv2d(nf, gc, 3, 1, 1)
+                self.conv2 = nn.Conv2d(nf + gc, gc, 3, 1, 1)
+                self.conv3 = nn.Conv2d(nf + 2 * gc, gc, 3, 1, 1)
+                self.conv4 = nn.Conv2d(nf + 3 * gc, gc, 3, 1, 1)
+                self.conv5 = nn.Conv2d(nf + 4 * gc, nf, 3, 1, 1)
+                self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                x1 = self.lrelu(self.conv1(x))
+                x2 = self.lrelu(self.conv2(torch.cat((x, x1), 1)))
+                x3 = self.lrelu(self.conv3(torch.cat((x, x1, x2), 1)))
+                x4 = self.lrelu(self.conv4(torch.cat((x, x1, x2, x3), 1)))
+                x5 = self.conv5(torch.cat((x, x1, x2, x3, x4), 1))
+                return x5 * 0.2 + x
+
+        class RRDB(nn.Module):
+            def __init__(self, nf: int = 64, gc: int = 32):
+                super().__init__()
+                self.rdb1 = ResidualDenseBlock_5C(nf, gc)
+                self.rdb2 = ResidualDenseBlock_5C(nf, gc)
+                self.rdb3 = ResidualDenseBlock_5C(nf, gc)
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                out = self.rdb1(x)
+                out = self.rdb2(out)
+                out = self.rdb3(out)
+                return out * 0.2 + x
+
+        class RRDBNet(nn.Module):
+            def __init__(self, in_nc: int = 12, out_nc: int = 3, nf: int = 64, nb: int = 23, gc: int = 32, scale: int = 2):
+                super().__init__()
+                self.scale = scale
+                self.conv_first = nn.Conv2d(in_nc, nf, 3, 1, 1)
+                self.body = nn.Sequential(*[RRDB(nf=nf, gc=gc) for _ in range(nb)])
+                self.conv_body = nn.Conv2d(nf, nf, 3, 1, 1)
+                self.conv_up1 = nn.Conv2d(nf, nf, 3, 1, 1)
+                self.conv_up2 = nn.Conv2d(nf, nf, 3, 1, 1)
+                self.conv_hr = nn.Conv2d(nf, nf, 3, 1, 1)
+                self.conv_last = nn.Conv2d(nf, out_nc, 3, 1, 1)
+                self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                feat = F.pixel_unshuffle(x, 2)
+                fea = self.conv_first(feat)
+                trunk = self.conv_body(self.body(fea))
+                fea = fea + trunk
+                fea = self.lrelu(self.conv_up1(F.interpolate(fea, scale_factor=2, mode="nearest")))
+                fea = self.lrelu(self.conv_up2(F.interpolate(fea, scale_factor=2, mode="nearest")))
+                out = self.conv_last(self.lrelu(self.conv_hr(fea)))
+                return out
+
         model_path = get_model_cache_path()
 
         # Download checkpoint if not cached locally
@@ -152,7 +139,6 @@ def get_realesrgan_model() -> RRDBNet:
             model = RRDBNet(in_nc=12, out_nc=3, nf=64, nb=23, gc=32, scale=2)
             checkpoint = torch.load(model_path, map_location="cpu")
             state_dict_key = "params_ema" if "params_ema" in checkpoint else "params"
-            # Strict verification of state dict keys against RRDBNet architecture
             res = model.load_state_dict(checkpoint[state_dict_key], strict=True)
             if res.missing_keys or res.unexpected_keys:
                 raise RuntimeError(f"State dict mismatch: missing={res.missing_keys}, unexpected={res.unexpected_keys}")
